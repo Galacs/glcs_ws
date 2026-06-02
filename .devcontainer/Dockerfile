@@ -1,4 +1,4 @@
-FROM docker.io/ros:lyrical
+FROM docker.io/osrf/ros:lyrical-desktop-full
 ARG USERNAME=USERNAME
 ARG USER_UID=1000
 ARG USER_GID=$USER_UID
