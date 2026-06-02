@@ -1,14 +1,14 @@
 {
     "name": "ROS 2 Development Container",
     "privileged": false,
-    "remoteUser": "galacs",
+    "remoteUser": "root",
     "build": {
         "dockerfile": "Dockerfile",
         "args": {
-            "USERNAME": "galacs"
+            "USERNAME": "root"
         }
     },
-    "updateRemoteUserUID": true,
+    "updateRemoteUserUID": false,
     "workspaceFolder": "/home/ws",
     "workspaceMount": "source=${localWorkspaceFolder},target=/home/ws,type=bind",
     "customizations": {
