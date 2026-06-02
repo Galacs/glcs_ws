@@ -58,3 +58,8 @@ src/**/install/
 
 # ROS Security
 .ros_security/
+
+.vscode/
+
+build/
+install/
