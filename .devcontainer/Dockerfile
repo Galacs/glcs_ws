@@ -13,6 +13,10 @@ RUN if id -u $USER_UID ; then userdel `id -un $USER_UID` ; fi
 #     && chmod 0440 /etc/sudoers.d/$USERNAME
 RUN apt-get update && apt-get upgrade -y
 RUN apt-get install -y python3-pip x11-xserver-utils iproute2 iputils-ping
+
+# Install gazebo
+RUN sudo apt-get install ros-lyrical-ros-gz
+
 ENV SHELL=/bin/bash
 
 USER $USERNAME
