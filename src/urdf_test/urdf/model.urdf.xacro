@@ -1,0 +1,58 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="robot">
+    <xacro:include filename="$(find urdf_test)/urdf/inertia.xacro" />
+    <xacro:include filename="$(find urdf_test)/urdf/materials.xacro" />
+
+    <link name="world"></link>
+
+    <joint name="base_joint" type="fixed">
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <parent link="world"/>
+        <child link="base_link"/>
+    </joint>
+
+    <link name="base_link">
+        <visual>
+            <geometry>
+                <box size="0.1 0.07 0.06" />
+            </geometry>
+            <material name="blue" />
+        </visual>
+        <collision>
+            <geometry>
+                <box size="0.1 0.07 0.06" />
+            </geometry>
+            <material name="blue" />
+        </collision>
+        <xacro:inertial_box mass="0.5" x="0.1" y="0.07" z="0.06">
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+        </xacro:inertial_box>
+    </link>
+
+    <joint name="left_wheel_joint" type="continuous">
+        <origin xyz="${0.05+0.005/2} 0 -0.02" rpy="0 ${pi/2} 0"/>
+        <parent link="base_link"/>
+        <child link="left_wheel_link"/>
+        <axis xyz="0 0 -1"/>
+        <limit velocity="100" effort="100"/>
+    </joint>
+
+    <link name="left_wheel_link">
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <cylinder radius="0.02" length="0.005" />
+            </geometry>
+                <material name="orange">
+            </material>
+        </visual>
+        <collision>
+            <geometry>
+                <cylinder radius="0.02" length="0.005" />
+            </geometry>
+        </collision>
+        <xacro:inertial_cylinder mass="0.05" length="0.005" radius="0.02">
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+        </xacro:inertial_cylinder>
+    </link>
+</robot>

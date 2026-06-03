@@ -28,4 +28,9 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}
 )
 
+install(FILES
+  robot.rviz
+  DESTINATION share/${PROJECT_NAME}
+)
+
 ament_package()

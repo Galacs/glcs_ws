@@ -1,14 +1,13 @@
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.substitutions import FileContent, LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, Command
 from launch.conditions import IfCondition, UnlessCondition
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
     # pkg_path = launch_ros.substitutions.FindPackageShare()
-    urdf = FileContent(
-        PathJoinSubstitution([FindPackageShare('urdf_test'), 'urdf', 'model.urdf']))
+    urdf = Command(['xacro ', PathJoinSubstitution([FindPackageShare('urdf_test'), 'urdf', 'model.urdf.xacro'])])
 
     return LaunchDescription([
        DeclareLaunchArgument(
@@ -40,5 +39,6 @@ def generate_launch_description():
             executable='rviz2',
             name='rviz2',
             output='screen',
+            arguments=['-d', PathJoinSubstitution([FindPackageShare('urdf_test'), 'robot.rviz',])],
         ),
     ])
