@@ -21,4 +21,5 @@ ENV SHELL=/bin/bash
 
 USER $USERNAME
 RUN echo "source /opt/ros/$ROS_DISTRO/setup.bash" >> ~/.bashrc
+RUN echo "source /home/ws/install/setup.bash" >> ~/.bashrc
 CMD ["/bin/bash"]
