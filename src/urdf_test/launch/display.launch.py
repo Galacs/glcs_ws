@@ -6,8 +6,7 @@ from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
-    # pkg_path = launch_ros.substitutions.FindPackageShare()
-    urdf = Command(['xacro ', PathJoinSubstitution([FindPackageShare('urdf_test'), 'urdf', 'model.urdf.xacro'])])
+    urdf = Command(['xacro ', PathJoinSubstitution([FindPackageShare('urdf_test'), 'description', 'model.urdf.xacro'])])
 
     return LaunchDescription([
        DeclareLaunchArgument(
