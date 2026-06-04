@@ -3,57 +3,115 @@
     <xacro:include filename="$(find urdf_test)/urdf/inertia.xacro" />
     <xacro:include filename="$(find urdf_test)/urdf/materials.xacro" />
 
+    <xacro:property name="chassis_link_x" value="0.1" />
+    <xacro:property name="chassis_link_y" value="0.07" />
+    <xacro:property name="chassis_link_z" value="0.06" />
+
+    <xacro:property name="wheel_link_diameter" value="0.05" />
+    <xacro:property name="wheel_link_length" value="0.01" />
+
     <link name="base_link"></link>
 
     <!-- Chassis link -->
     <joint name="chassis_joint" type="fixed">
         <parent link="base_link"/>
-        <child link="chassis"/>
-        <origin xyz="-0.1 0 0"/>
+        <child link="chassis_link"/>
     </joint>
 
-    <link name="base_link">
+    <link name="chassis_link">
         <visual>
             <geometry>
-                <box size="0.1 0.07 0.06" />
+                <box size="${chassis_link_x} ${chassis_link_y} ${chassis_link_z}" />
             </geometry>
+            <origin xyz="${chassis_link_x/3} 0 ${chassis_link_z/2 + wheel_link_diameter/3}" rpy="0 0 0"/>
             <material name="blue" />
         </visual>
         <collision>
             <geometry>
-                <box size="0.1 0.07 0.06" />
+                <box size="${chassis_link_x} ${chassis_link_y} ${chassis_link_z}" />
             </geometry>
-            <material name="blue" />
+            <origin xyz="${chassis_link_x/3} 0 ${chassis_link_z/2 + wheel_link_diameter/3}" rpy="0 0 0"/>
         </collision>
-        <xacro:inertial_box mass="0.5" x="0.1" y="0.07" z="0.06">
-            <origin xyz="0 0 0" rpy="0 0 0"/>
+        <xacro:inertial_box mass="0.5" x="${chassis_link_x}" y="${chassis_link_y}" z="${chassis_link_x}">
+            <origin xyz="${chassis_link_x/3} 0 ${chassis_link_z/2 + wheel_link_diameter/3}" rpy="0 0 0"/>
         </xacro:inertial_box>
     </link>
 
+    <!-- Left wheel link -->
     <joint name="left_wheel_joint" type="continuous">
-        <origin xyz="${0.05+0.005/2} 0 -0.02" rpy="0 ${pi/2} 0"/>
         <parent link="base_link"/>
-        <child link="left_wheel_link"/>
-        <axis xyz="0 0 -1"/>
-        <limit velocity="100" effort="100"/>
+        <child link="left_wheel"/>
+        <origin xyz="0 ${chassis_link_y/2} ${wheel_link_diameter/2}" rpy="-${pi/2} 0 0" />
+        <axis xyz="0 0 1"/>
     </joint>
 
-    <link name="left_wheel_link">
+    <link name="left_wheel">
         <visual>
-            <origin xyz="0 0 0" rpy="0 0 0" />
             <geometry>
-                <cylinder radius="0.02" length="0.005" />
+                <cylinder radius="${wheel_link_diameter/2}" length="${wheel_link_length}"/>
             </geometry>
-                <material name="orange">
-            </material>
+            <origin xyz="0 0 ${wheel_link_length/2}"/>
+            <material name="orange"/>
         </visual>
         <collision>
             <geometry>
-                <cylinder radius="0.02" length="0.005" />
+                <cylinder radius="${wheel_link_diameter/2}" length="${wheel_link_length}"/>
+            </geometry>
+            <origin xyz="0 0 ${wheel_link_length/2}"/>
+        </collision>
+        <xacro:inertial_cylinder mass="0.1" length="${wheel_link_length}" radius="${wheel_link_diameter/2}">
+            <origin xyz="0 0 ${wheel_link_length/2}" />
+        </xacro:inertial_cylinder>
+    </link>
+
+    <!-- Right wheel link -->
+    <joint name="right_wheel_joint" type="continuous">
+        <parent link="base_link"/>
+        <child link="right_wheel"/>
+        <origin xyz="0 -${chassis_link_y/2} ${wheel_link_diameter/2}" rpy="${pi/2} 0 0" />
+        <axis xyz="0 0 -1"/>
+    </joint>
+
+    <link name="right_wheel">
+        <visual>
+            <geometry>
+                <cylinder radius="${wheel_link_diameter/2}" length="${wheel_link_length}"/>
+            </geometry>
+            <origin xyz="0 0 ${wheel_link_length/2}"/>
+            <material name="orange"/>
+        </visual>
+        <collision>
+            <geometry>
+                <cylinder radius="${wheel_link_diameter/2}" length="${wheel_link_length}"/>
+            </geometry>
+            <origin xyz="0 0 ${wheel_link_length/2}"/>
+        </collision>
+        <xacro:inertial_cylinder mass="0.1" length="${wheel_link_length}" radius="${wheel_link_diameter/2}">
+            <origin xyz="0 0 ${wheel_link_length/2}" />
+        </xacro:inertial_cylinder>
+    </link>
+
+    <!-- Caster wheel link -->
+        <joint name="caster_joint" type="fixed">
+        <parent link="base_link"/>
+        <child link="caster_link"/>
+        <origin xyz="${chassis_link_x/2} 0 ${wheel_link_diameter/2}"/>
+    </joint>
+
+    <link name="caster_link">
+        <visual>
+            <geometry>
+                <sphere radius="${wheel_link_diameter/2}"/>
+            </geometry>
+            <material name="orange"/>
+        </visual>
+        <collision>
+            <geometry>
+                <sphere radius="${wheel_link_diameter/2}"/>
             </geometry>
         </collision>
-        <xacro:inertial_cylinder mass="0.05" length="0.005" radius="0.02">
+        <xacro:inertial_sphere mass="0.1" radius="0.05">
             <origin xyz="0 0 0" rpy="0 0 0"/>
-        </xacro:inertial_cylinder>
+        </xacro:inertial_sphere>
     </link>
 </robot>
