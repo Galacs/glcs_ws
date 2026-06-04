@@ -68,12 +68,12 @@
     <!-- Right wheel link -->
     <joint name="right_wheel_joint" type="continuous">
         <parent link="base_link"/>
-        <child link="right_wheel"/>
+        <child link="right_wheel_link"/>
         <origin xyz="0 -${chassis_link_y/2} ${wheel_link_diameter/2}" rpy="${pi/2} 0 0" />
         <axis xyz="0 0 -1"/>
     </joint>
 
-    <link name="right_wheel">
+    <link name="right_wheel_link">
         <visual>
             <geometry>
                 <cylinder radius="${wheel_link_diameter/2}" length="${wheel_link_length}"/>

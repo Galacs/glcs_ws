@@ -60,6 +60,7 @@ def generate_launch_description():
                 '--ros-args',
                 '-p',
                 ['config_file:=', rz_bridge_cfg_path]],
+            parameters=[{'use_sim_time': use_sim_time}],
         ),
         Node(
             package='robot_state_publisher',
@@ -95,5 +96,6 @@ def generate_launch_description():
             name='rviz2',
             output='screen',
             arguments=['-d', PathJoinSubstitution([FindPackageShare('urdf_test'), 'robot.rviz',])],
+            parameters=[{'use_sim_time': use_sim_time}],
         ),
     ])
