@@ -1,14 +1,9 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="robot">
-    <xacro:include filename="$(find urdf_test)/urdf/inertia.xacro" />
-    <xacro:include filename="$(find urdf_test)/urdf/materials.xacro" />
-
-    <xacro:property name="chassis_link_x" value="0.1" />
-    <xacro:property name="chassis_link_y" value="0.07" />
-    <xacro:property name="chassis_link_z" value="0.06" />
-
-    <xacro:property name="wheel_link_diameter" value="0.05" />
-    <xacro:property name="wheel_link_length" value="0.01" />
+    <xacro:include filename="$(find urdf_test)/description/constants.xacro" />
+    <xacro:include filename="$(find urdf_test)/description/inertia.xacro" />
+    <xacro:include filename="$(find urdf_test)/description/materials.xacro" />
+    <xacro:include filename="$(find urdf_test)/description/gazebo_control.xacro" />
 
     <link name="base_link"></link>
 
@@ -36,16 +31,19 @@
             <origin xyz="${chassis_link_x/3} 0 ${chassis_link_z/2 + wheel_link_diameter/3}" rpy="0 0 0"/>
         </xacro:inertial_box>
     </link>
+    <gazebo reference="chassis_link">
+        <material>Gazebo/Blue</material>
+    </gazebo>
 
     <!-- Left wheel link -->
     <joint name="left_wheel_joint" type="continuous">
         <parent link="base_link"/>
-        <child link="left_wheel"/>
+        <child link="left_wheel_link"/>
         <origin xyz="0 ${chassis_link_y/2} ${wheel_link_diameter/2}" rpy="-${pi/2} 0 0" />
         <axis xyz="0 0 1"/>
     </joint>
 
-    <link name="left_wheel">
+    <link name="left_wheel_link">
         <visual>
             <geometry>
                 <cylinder radius="${wheel_link_diameter/2}" length="${wheel_link_length}"/>
@@ -63,6 +61,9 @@
             <origin xyz="0 0 ${wheel_link_length/2}" />
         </xacro:inertial_cylinder>
     </link>
+    <gazebo reference="left_wheel_link">
+        <material>Gazebo/Orange</material>
+    </gazebo>
 
     <!-- Right wheel link -->
     <joint name="right_wheel_joint" type="continuous">
@@ -90,6 +91,9 @@
             <origin xyz="0 0 ${wheel_link_length/2}" />
         </xacro:inertial_cylinder>
     </link>
+    <gazebo reference="right_wheel_link">
+        <material>Gazebo/Orange</material>
+    </gazebo>
 
     <!-- Caster wheel link -->
         <joint name="caster_joint" type="fixed">
@@ -114,4 +118,9 @@
             <origin xyz="0 0 0" rpy="0 0 0"/>
         </xacro:inertial_sphere>
     </link>
+    <gazebo reference="caster_link">
+        <material>Gazebo/Orange</material>
+        <mu1 value="0.001"/>
+        <mu2 value="0.001"/>
+    </gazebo>
 </robot>
