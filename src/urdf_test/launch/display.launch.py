@@ -29,6 +29,7 @@ def generate_launch_description():
             condition=IfCondition(LaunchConfiguration("use_sim_time")),
             launch_arguments={
                 # 'gz_args': PathJoinSubstitution([example_pkg_path, 'worlds/example_world.sdf']),  # Replace with your own world file
+                'gz_args': 'empty.sdf',
                 'on_exit_shutdown': 'True'
             }.items(),
         ),
