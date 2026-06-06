@@ -2,14 +2,21 @@
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="mcc_camera">
     <xacro:include filename="$(find urdf_test)/description/materials.xacro" />
 
-    <link name="map"></link>
-    <joint name="camera_joint" type="fixed">
-        <parent link="map"/>
-        <child link="camera_link"/>
-        <origin xyz="0 0 1" rpy="0 0 0"/>
-    </joint>
+    <gazebo>
+        <static>true</static>
+        <plugin filename="gz-sim-sensors-system"
+                name="gz::sim::systems::Sensors">
+            <render_engine>ogre2</render_engine>
+        </plugin>
+    </gazebo>
 
     <link name="camera_link">
+        <inertial>
+            <mass value="0.01"/>
+            <inertia ixx="0.0001" ixy="0" ixz="0"
+                     iyy="0.0001" iyz="0"
+                     izz="0.0001"/>
+        </inertial>
         <visual>
             <geometry>
                 <box size="0.010 0.03 0.03"/>
@@ -28,15 +35,17 @@
     <link name="camera_link_optical"></link>
 
 
-
-    <!-- <gazebo reference="camera_link">
+    <gazebo reference="camera_link">
         <material>Gazebo/Red</material>
 
         <sensor name="camera" type="camera">
             <pose>0 0 0 0 0 0</pose>
             <visualize>true</visualize>
+            <always_on>true</always_on>
+            <topic>/mcc/camera/image_raw</topic>
             <update_rate>10</update_rate>
             <camera>
+                <camera_info_topic>mcc/camera/camera_info</camera_info_topic>
                 <horizontal_fov>1.0</horizontal_fov>
                 <image>
                     <format>R8G8B8</format>
@@ -48,9 +57,6 @@
                     <far>8.0</far>
                 </clip>
             </camera>
-            <plugin name="camera_controller" filename="libgazebo_ros_camera.so">
-                <frame_name>camera_link_optical</frame_name>
-            </plugin>
         </sensor>
-    </gazebo> -->
+    </gazebo>
 </robot>

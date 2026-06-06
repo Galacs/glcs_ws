@@ -41,19 +41,20 @@ def generate_launch_description():
                                    'gz_spawn_model.launch.py'])]),
             condition=IfCondition(LaunchConfiguration("use_sim_time")),
             launch_arguments=[
-                        # ('world', world),
-                        #   ('file', file),
-                        #   ('model_string', model_string),
                           ('topic', 'robot_description'),
                           ('entity_name', 'robot'),
-                        #   ('allow_renaming', allow_renaming),
-                        #   ('x', x),
-                        #   ('y', y),
-                        #   ('z', z),
-                        #   ('R', roll),
-                        #   ('P', pitch),
-                        #   ('Y', yaw), ]),
             ]
+        ),
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+            [PathJoinSubstitution([FindPackageShare('ros_gz_sim'),
+                                   'launch',
+                                   'gz_spawn_model.launch.py'])]),
+            condition=IfCondition(LaunchConfiguration("use_sim_time")),
+            launch_arguments=[('topic', 'mcc/robot_description'),
+                              ('entity_name', 'mcc_camera'),
+                              ('x', '0.0'), ('y', '0.0'), ('z', '1.0'),
+                              ('R', '0.0'), ('P', '1.57'), ('Y', '0.0')],
         ),
         Node(
             package='ros_gz_bridge',
@@ -63,6 +64,7 @@ def generate_launch_description():
                 '-p',
                 ['config_file:=', rz_bridge_cfg_path]],
             parameters=[{'use_sim_time': use_sim_time}],
+            condition=IfCondition(LaunchConfiguration("use_sim_time")),
         ),
         Node(
             package='robot_state_publisher',
@@ -108,6 +110,24 @@ def generate_launch_description():
                 '--yaw', '0', '--pitch', '0', '--roll', '0',
                 '--frame-id', 'map', '--child-frame-id', 'odom']
         ),
+        Node(
+            package='tf2_ros',
+            executable='static_transform_publisher',
+            arguments=[
+                '--x', '0', '--y', '0', '--z', '1',
+                '--yaw', '0', '--pitch', '1.57', '--roll', '0',
+                '--frame-id', 'map', '--child-frame-id', 'camera_link']
+        ),
+        # Node(
+        #     package='ros_gz_image',
+        #     executable='image_bridge',
+        #     arguments=['/mcc/camera/image_raw'],
+        #     parameters=[{
+        #         'use_sim_time': use_sim_time,
+        #         'override_frame_id': 'camera_link_optical',
+        #     }],
+        #     condition=IfCondition(LaunchConfiguration("use_sim_time")),
+        # ),
         Node(
             package='rviz2',
             executable='rviz2',
