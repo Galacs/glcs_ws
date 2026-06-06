@@ -9,6 +9,7 @@ from launch_ros.substitutions import FindPackageShare
 def generate_launch_description():
     use_sim_time = LaunchConfiguration('use_sim_time')
     urdf = Command(['xacro ', PathJoinSubstitution([FindPackageShare('urdf_test'), 'description', 'model.urdf.xacro'])])
+    urdf_cam = Command(['xacro ', PathJoinSubstitution([FindPackageShare('urdf_test'), 'description', 'mcc_camera.urdf.xacro'])])
     params = {'robot_description': urdf, 'use_sim_time': use_sim_time}
 
     gz_launch_path = PathJoinSubstitution([FindPackageShare('ros_gz_sim'), 'launch', 'gz_sim.launch.py'])
@@ -69,6 +70,14 @@ def generate_launch_description():
             name='robot_state_publisher',
             output='screen',
             parameters=[params],
+        ),
+        Node(
+            package='robot_state_publisher',
+            executable='robot_state_publisher',
+            name='robot_state_publisher_mcc',
+            output='screen',
+            namespace='mcc',
+            parameters=[{'robot_description': urdf_cam, 'use_sim_time': use_sim_time}],
         ),
         Node(
             package='joint_state_publisher',
