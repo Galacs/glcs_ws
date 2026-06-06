@@ -68,7 +68,7 @@ def generate_launch_description():
             name='robot_state_publisher',
             output='screen',
             parameters=[params],
-        ) ,
+        ),
         Node(
             package='joint_state_publisher',
             executable='joint_state_publisher',
@@ -89,6 +89,14 @@ def generate_launch_description():
                     LaunchConfiguration('joint_gui'),
                     NotSubstitution(LaunchConfiguration("use_sim_time"))
                 )),
+        ),
+        Node(
+            package='tf2_ros',
+            executable='static_transform_publisher',
+            arguments=[
+                '--x', '0', '--y', '0', '--z', '0',
+                '--yaw', '0', '--pitch', '0', '--roll', '0',
+                '--frame-id', 'map', '--child-frame-id', 'odom']
         ),
         Node(
             package='rviz2',
