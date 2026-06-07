@@ -28,6 +28,6 @@
     <joint name="aruco_joint" type="fixed">
         <parent link="base_link"/>
         <child link="aruco_link"/>
-        <origin xyz="0 0 0.1" rpy="0 0 1.57"/>
+        <origin xyz="0 0 0.1" rpy="0 0 ${-pi}"/>
     </joint>
 </robot>
