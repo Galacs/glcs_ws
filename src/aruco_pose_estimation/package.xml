@@ -16,10 +16,10 @@
 	<depend>geometry_msgs</depend>
 	<depend>std_msgs</depend>
 	<depend>sensor_msgs</depend>
-	<depend>open3d</depend>
-	<depend>opencv</depend>
+	<!-- <depend>open3d</depend> -->
+	<!-- <depend>python-opencv</depend> -->
 	<depend>cv_bridge</depend>
-	<depend>tf2_transformations</depend>
+	<depend>tf_transformations</depend>
 
 	<test_depend>ament_lint_auto</test_depend>
 	<test_depend>ament_lint_common</test_depend>

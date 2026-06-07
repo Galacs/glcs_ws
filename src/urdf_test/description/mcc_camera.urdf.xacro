@@ -46,14 +46,14 @@
             <update_rate>10</update_rate>
             <camera>
                 <camera_info_topic>mcc/camera/camera_info</camera_info_topic>
-                <horizontal_fov>1.0</horizontal_fov>
+                <horizontal_fov>1.5</horizontal_fov>
                 <image>
                     <format>R8G8B8</format>
-                    <width>640</width>
-                    <height>480</height>
+                    <width>1920</width>
+                    <height>1080</height>
                 </image>
                 <clip>
-                    <near>0.05</near>
+                    <near>0.1</near>
                     <far>8.0</far>
                 </clip>
             </camera>

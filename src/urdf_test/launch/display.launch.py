@@ -53,7 +53,7 @@ def generate_launch_description():
             condition=IfCondition(LaunchConfiguration("use_sim_time")),
             launch_arguments=[('topic', 'mcc/robot_description'),
                               ('entity_name', 'mcc_camera'),
-                              ('x', '0.0'), ('y', '0.0'), ('z', '1.0'),
+                              ('x', '0.0'), ('y', '0.0'), ('z', '2.0'),
                               ('R', '0.0'), ('P', '1.57'), ('Y', '0.0')],
         ),
         Node(
@@ -114,7 +114,7 @@ def generate_launch_description():
             package='tf2_ros',
             executable='static_transform_publisher',
             arguments=[
-                '--x', '0', '--y', '0', '--z', '1',
+                '--x', '0', '--y', '0', '--z', '2',
                 '--yaw', '0', '--pitch', '1.57', '--roll', '0',
                 '--frame-id', 'map', '--child-frame-id', 'camera_link']
         ),

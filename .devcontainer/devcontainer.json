@@ -31,6 +31,7 @@
         "ROS_DOMAIN_ID": "96"
     },
     "runArgs": [
+        "--gpus", "all",
         "--cap-add=NET_RAW",
         "--net=host",
         "--pid=host",
