@@ -4,6 +4,7 @@
     <xacro:include filename="$(find urdf_test)/description/inertia.xacro" />
     <xacro:include filename="$(find urdf_test)/description/materials.xacro" />
     <xacro:include filename="$(find urdf_test)/description/gazebo_control.xacro" />
+    <xacro:include filename="$(find urdf_test)/description/aruco.xacro" />
 
     <link name="base_link"></link>
 

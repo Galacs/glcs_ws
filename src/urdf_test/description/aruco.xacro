@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+    <link name="aruco_link">
+        <visual>
+            <geometry>
+                <mesh filename="$(find urdf_test)/model/aruco_tag.dae" scale="1 1 1"/>
+                <!-- <mesh filename="package://urdf_test/model/aruco_tag.dae" scale="1 1 1"/> -->
+            </geometry>
+            <!-- <geometry>
+                <box size="0.1 0.1 0.02"/>
+            </geometry> -->
+            <origin xyz="0 0 0" rpy="0 0 0" />
+        </visual>
+        <collision>
+            <geometry>
+                <box size="0.1 0.1 0.02"/>
+            </geometry>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+        </collision>
+        <inertial>
+            <mass value="0.01"/>
+            <origin xyz="0 0 0" />
+            <inertia ixx="0.001" ixy="0.0" ixz="0.0" iyy="0.001" iyz="0.0" izz="0.001"/>
+        </inertial>
+    </link>
+
+    <!-- Attach Cylinder Link to Base Link with a Fixed Joint -->
+    <joint name="aruco_joint" type="fixed">
+        <parent link="base_link"/>
+        <child link="aruco_link"/>
+        <origin xyz="0 0 0.1" rpy="0 0 1.57"/>
+    </joint>
+</robot>
