@@ -1,7 +1,7 @@
 /aruco_node:
     ros__parameters:
         # Aruco detection parameters
-        marker_size: 0.075 # Size of the markers in meters
+        marker_size: 0.071 # Size of the markers in meters
         aruco_dictionary_id: DICT_4X4_50 # Aruco dictionary type
         # Input topics
         image_topic: /mcc/camera/image_raw # Input image topic

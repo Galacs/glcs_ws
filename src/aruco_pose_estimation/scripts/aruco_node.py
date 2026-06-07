@@ -53,7 +53,7 @@ from aruco_pose_estimation.pose_estimation import pose_estimation
 # ROS2 message imports
 from sensor_msgs.msg import CameraInfo
 from sensor_msgs.msg import Image
-from geometry_msgs.msg import PoseArray
+from geometry_msgs.msg import PoseArray, PoseWithCovarianceStamped
 from aruco_interfaces.msg import ArucoMarkers
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 
@@ -110,6 +110,7 @@ class ArucoNode(rclpy.node.Node):
 
         # Set up publishers
         self.poses_pub = self.create_publisher(PoseArray, self.markers_visualization_topic, 10)
+        self.pose_pub = self.create_publisher(PoseWithCovarianceStamped, '/pose', 10)
         self.markers_pub = self.create_publisher(ArucoMarkers, self.detected_markers_topic, 10)
         self.image_pub = self.create_publisher(Image, self.output_image_topic, 10)
 
@@ -179,9 +180,21 @@ class ArucoNode(rclpy.node.Node):
                                                      aruco_detector=self.aruco_detector,
                                                      marker_size=self.marker_size, matrix_coefficients=self.intrinsic_mat,
                                                      distortion_coefficients=self.distortion, pose_array=pose_array, markers=markers)
-
         # if some markers are detected
         if len(markers.marker_ids) > 0:
+            pose_msg = PoseWithCovarianceStamped()
+            pose_msg.header = pose_array.header
+            pose_msg.pose.pose = pose_array.poses[0]
+            pose_msg.pose.covariance = [
+                0.0025, 0, 0, 0, 0, 0,
+                0, 0.0025, 0, 0, 0, 0,
+                0, 0, 999.0, 0, 0, 0,
+                0, 0, 0, 999.0, 0, 0,
+                0, 0, 0, 0, 999.0, 0,
+                0, 0, 0, 0, 0, 0.01,
+            ]
+            self.pose_pub.publish(pose_msg)
+
             # Publish the results with the poses and markes positions
             self.poses_pub.publish(pose_array)
             self.markers_pub.publish(markers)
