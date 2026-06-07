@@ -186,12 +186,12 @@ class ArucoNode(rclpy.node.Node):
             pose_msg.header = pose_array.header
             pose_msg.pose.pose = pose_array.poses[0]
             pose_msg.pose.covariance = [
-                0.0025, 0, 0, 0, 0, 0,
-                0, 0.0025, 0, 0, 0, 0,
+                0.25, 0, 0, 0, 0, 0,
+                0, 0.25, 0, 0, 0, 0,
                 0, 0, 999.0, 0, 0, 0,
                 0, 0, 0, 999.0, 0, 0,
                 0, 0, 0, 0, 999.0, 0,
-                0, 0, 0, 0, 0, 0.01,
+                0, 0, 0, 0, 0, 0.1,
             ]
             self.pose_pub.publish(pose_msg)
 
