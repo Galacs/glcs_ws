@@ -43,15 +43,21 @@
             <visualize>true</visualize>
             <always_on>true</always_on>
             <topic>/mcc/camera/image_raw</topic>
-            <update_rate>10</update_rate>
+            <update_rate>30</update_rate>
             <camera>
                 <camera_info_topic>mcc/camera/camera_info</camera_info_topic>
                 <horizontal_fov>1.5</horizontal_fov>
                 <image>
                     <format>R8G8B8</format>
-                    <width>1920</width>
-                    <height>1080</height>
+                    <width>1280</width>
+                    <height>720</height>
                 </image>
+                <!-- <horizontal_fov>2</horizontal_fov>
+                <image>
+                    <format>R8G8B8</format>
+                    <width>2592</width>
+                    <height>1944</height>
+                </image> -->
                 <clip>
                     <near>0.1</near>
                     <far>8.0</far>
