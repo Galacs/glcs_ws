@@ -66,8 +66,8 @@ def pose_estimation(rgb_frame: np.array, depth_frame: np.array, aruco_detector: 
             tvec, rvec, quat = my_estimatePoseSingleMarkers(corners=corners[i], marker_size=marker_size,
                                                                     camera_matrix=matrix_coefficients,
                                                                     distortion=distortion_coefficients)
-            # if tvec is None:
-            #     continue
+            if tvec is None:
+                continue
 
             # show the detected markers bounding boxes
             frame_processed = aruco_display(corners=corners, ids=marker_ids,
@@ -134,15 +134,15 @@ def my_estimatePoseSingleMarkers(corners, marker_size, camera_matrix, distortion
     # solvePnP returns the rotation and translation vectors
     retval, rvec, tvec = cv2.solvePnP(objectPoints=marker_points, imagePoints=corners,
                                         cameraMatrix=camera_matrix, distCoeffs=distortion, flags=cv2.SOLVEPNP_IPPE_SQUARE)
-    # if not retval:
-    #     return None, None, None
+    if not retval:
+        return None, None, None
     rvec = rvec.reshape(3, 1)
     tvec = tvec.reshape(3, 1)
        
     rot, jacobian = cv2.Rodrigues(rvec)
-    # if not np.isfinite(rot).all():
-    #     return None, None, None
-    rot_matrix = np.eye(4, dtype=np.float32)
+    if not np.isfinite(rot).all():
+        return None, None, None
+    rot_matrix = np.eye(4, dtype=np.float64)
     rot_matrix[0:3, 0:3] = rot
 
     # det = np.linalg.det(rot_matrix[0:3, 0:3])

@@ -15,6 +15,7 @@ def generate_launch_description():
     gz_launch_path = PathJoinSubstitution([FindPackageShare('ros_gz_sim'), 'launch', 'gz_sim.launch.py'])
 
     rz_bridge_cfg_path = PathJoinSubstitution([FindPackageShare('urdf_test'), 'config', 'ros_gz_example_bridge.yaml'])
+    ekf_cfg_path = PathJoinSubstitution([FindPackageShare('urdf_test'), 'config', 'ekf.yaml'])
 
     return LaunchDescription([
         DeclareLaunchArgument(
@@ -102,13 +103,20 @@ def generate_launch_description():
                     NotSubstitution(LaunchConfiguration("use_sim_time"))
                 )),
         ),
+        # Node(
+        #     package='tf2_ros',
+        #     executable='static_transform_publisher',
+        #     arguments=[
+        #         '--x', '0', '--y', '0', '--z', '0',
+        #         '--yaw', '0', '--pitch', '0', '--roll', '0',
+        #         '--frame-id', 'map', '--child-frame-id', 'odom']
+        # ),
         Node(
-            package='tf2_ros',
-            executable='static_transform_publisher',
-            arguments=[
-                '--x', '0', '--y', '0', '--z', '0',
-                '--yaw', '0', '--pitch', '0', '--roll', '0',
-                '--frame-id', 'map', '--child-frame-id', 'odom']
+            package='robot_localization',
+            executable='ekf_node',
+            name='ekf_filter_node',
+            output='screen',
+            parameters=[ekf_cfg_path, {'use_sim_time': use_sim_time}],
         ),
         Node(
             package='tf2_ros',
