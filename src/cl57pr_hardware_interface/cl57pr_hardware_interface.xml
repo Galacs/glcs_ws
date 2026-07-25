@@ -1,0 +1,10 @@
+<library path="cl57pr_hardware_interface">
+  <class name="cl57pr_hardware_interface/Cl57prHardwareInterface"
+         type="cl57pr_hardware_interface::Cl57prHardwareInterface"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>
+      ros2_control SystemInterface for a single-axis STEPPERONLINE CL57PR
+      closed-loop stepper driver over Modbus RTU (RS485).
+    </description>
+  </class>
+</library>

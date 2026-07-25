@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!--
+    Example ros2_control block for a single CL57PR-driven joint.
+    Adjust joint name, limits, and hardware parameters to match your setup.
+  -->
+  <ros2_control name="cl57pr_axis" type="system">
+    <hardware>
+      <plugin>cl57pr_hardware_interface/Cl57prHardwareInterface</plugin>
+      <param name="serial_port">/dev/ttyACM0</param>
+      <param name="baud_rate">115200</param>
+      <param name="slave_id">1</param>
+      <!-- Pulses per motor revolution: microstep setting * 4 (quadrature) or
+           encoder line count, per the driver's DIP-switch / register config.
+           Example below assumes 10000 pulses/rev (2500-line encoder, closed loop). -->
+      <param name="steps_per_rev">10000</param>
+      <param name="max_speed_rpm">60</param>
+      <param name="start_speed_rpm">30</param>
+      <param name="accel_time_ms">200</param>
+      <param name="decel_time_ms">200</param>
+      <!-- If true, the driver's position counter is zeroed on activation and
+           that physical position becomes joint position 0. Set to false if
+           you home the axis some other way and want the driver's own
+           absolute counter preserved across activations. -->
+      <param name="zero_position_on_activate">true</param>
+      <!-- Commands smaller than this (rad) are treated as unchanged, to avoid
+           re-triggering a Modbus move for control noise. -->
+      <param name="position_epsilon_rad">0.0005</param>
+    </hardware>
+
+    <joint name="stepper_joint">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+  </ros2_control>
+
+</robot>

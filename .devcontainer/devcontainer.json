@@ -36,6 +36,7 @@
         "--net=host",
         "--pid=host",
         "--ipc=host",
+        "--device=/dev/ttyACM0",
         "-e", "DISPLAY=${env:DISPLAY}"
     ],
     "mounts": [
