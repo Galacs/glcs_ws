@@ -19,7 +19,7 @@
       <param name="baud_rate">115200</param>
       <param name="slave_id">1</param>
       <param name="steps_per_rev">1000</param>
-      <param name="max_speed_rpm">60</param>
+      <param name="max_speed_rpm">200</param>
       <param name="start_speed_rpm">30</param>
       <param name="accel_time_ms">200</param>
       <param name="decel_time_ms">200</param>

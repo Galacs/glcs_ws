@@ -75,6 +75,11 @@ install(
   DESTINATION share/${PROJECT_NAME}
 )
 
+install(PROGRAMS
+  steering_joystick_controller.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 ament_export_include_directories(include)
 ament_export_libraries(cl57pr_hardware_interface)
 ament_export_dependencies(hardware_interface pluginlib rclcpp rclcpp_lifecycle)
