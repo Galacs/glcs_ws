@@ -17,6 +17,8 @@ def generate_launch_description():
     rz_bridge_cfg_path = PathJoinSubstitution([FindPackageShare('urdf_test'), 'config', 'ros_gz_example_bridge.yaml'])
     ekf_cfg_path = PathJoinSubstitution([FindPackageShare('urdf_test'), 'config', 'ekf.yaml'])
 
+    controllers_cfg = PathJoinSubstitution([FindPackageShare('urdf_test'), 'config', 'controllers.yaml'])
+
     return LaunchDescription([
         DeclareLaunchArgument(
             'use_sim_time',
@@ -31,7 +33,7 @@ def generate_launch_description():
             condition=IfCondition(LaunchConfiguration("use_sim_time")),
             launch_arguments={
                 # 'gz_args': PathJoinSubstitution([example_pkg_path, 'worlds/example_world.sdf']),  # Replace with your own world file
-                'gz_args': 'empty.sdf',
+                'gz_args': 'empty.sdf -r',
                 'on_exit_shutdown': 'True'
             }.items(),
         ),
@@ -144,4 +146,16 @@ def generate_launch_description():
             arguments=['-d', PathJoinSubstitution([FindPackageShare('urdf_test'), 'robot.rviz',])],
             parameters=[{'use_sim_time': use_sim_time}],
         ),
+        Node(package='controller_manager', executable='spawner',
+            arguments=['joint_state_broadcaster',
+                        '--param-file', controllers_cfg],
+            condition=IfCondition(LaunchConfiguration('use_sim_time'))),
+        Node(package='controller_manager', executable='spawner',
+        arguments=['mecanum_drive_controller',
+                    '--param-file', controllers_cfg,
+                    '--controller-ros-args',
+                    '-r /mecanum_drive_controller/reference:=/cmd_vel '
+                    '-r /mecanum_drive_controller/odometry:=/odom '
+                    '-r /mecanum_drive_controller/tf_odometry:=/tf'],
+        condition=IfCondition(LaunchConfiguration('use_sim_time'))),
     ])
