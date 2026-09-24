@@ -1,9 +1,23 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
-    <xacro:property name="chassis_link_x" value="0.1" />
-    <xacro:property name="chassis_link_y" value="0.07" />
-    <xacro:property name="chassis_link_z" value="0.06" />
 
-    <xacro:property name="wheel_link_diameter" value="0.05" />
-    <xacro:property name="wheel_link_length" value="0.01" />
+    <xacro:property name="chassis_link_x" value="0.250" />
+    <xacro:property name="chassis_link_y" value="0.167" />
+    <xacro:property name="chassis_link_z" value="0.082" />
+
+    <!-- Mecanum wheels, 104 mm diameter, 38 mm wide -->
+    <xacro:property name="wheel_link_diameter" value="0.104" />
+    <xacro:property name="wheel_link_length" value="0.038" />
+
+    <!-- Distance between wheel centers, 216 mm (x, wheelbase) by 168 mm (y, track) -->
+    <xacro:property name="wheel_base_x" value="0.216" />
+    <xacro:property name="wheel_track_y" value="0.168" />
+
+    <!-- Axle height above the ground (wheels touch the ground).
+         The axle sits at the chassis mid-height, so the chassis center is at this same height. -->
+    <xacro:property name="wheel_axle_z" value="${wheel_link_diameter/2}" />
+    <xacro:property name="chassis_center_z" value="${wheel_axle_z}" />
+
+    <xacro:property name="chassis_mass" value="0.5" />
+    <xacro:property name="wheel_mass" value="0.1" />
 </robot>
