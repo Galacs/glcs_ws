@@ -10,13 +10,27 @@ find_package(ament_cmake REQUIRED)
 # uncomment the following section in order to fill in
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
+find_package(nav2_behavior_tree REQUIRED)
+find_package(ament_index_cpp REQUIRED)
+find_package(nav2_ros_common REQUIRED)
 
 install(DIRECTORY
   config
   launch
   maps
+  bt
   DESTINATION share/${PROJECT_NAME}
 )
+
+
+add_executable(alternate_goals_mission src/alternate_goals_mission_node.cpp)
+target_link_libraries(alternate_goals_mission
+  rclcpp::rclcpp
+  nav2_behavior_tree::nav2_behavior_tree
+  nav2_ros_common::nav2_ros_common
+  ament_index_cpp::ament_index_cpp
+)
+install(TARGETS alternate_goals_mission DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

@@ -19,6 +19,8 @@ def generate_launch_description():
         [FindPackageShare('bnav'), 'config', 'nav2_params.yaml'])
     default_map_file = PathJoinSubstitution(
         [FindPackageShare('bnav'), 'maps', 'map.yaml'])
+    default_bt_xml = PathJoinSubstitution(
+    [FindPackageShare('bnav'), 'behavior_trees', 'alternate_goals.xml'])
 
     navigation_launch_path = PathJoinSubstitution(
         [nav2_bringup_share, 'launch', 'navigation_launch.py'])
@@ -70,6 +72,7 @@ def generate_launch_description():
                 'use_sim_time': use_sim_time,
                 'params_file': params_file,
                 'autostart': autostart,
+                # 'default_bt_xml_filename': default_bt_xml,
             }.items(),
         ),
         IncludeLaunchDescription(
@@ -78,6 +81,12 @@ def generate_launch_description():
             launch_arguments={
                 'use_sim_time': use_sim_time,
             }.items(),
+        ),
+        Node(
+            package='bnav',
+            executable='alternate_goals_mission',
+            name='alternate_goals_mission',
+            output='screen',
         ),
 
     ])
