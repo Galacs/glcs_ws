@@ -1,9 +1,23 @@
-<root BTCPP_format="4" main_tree_to_execute="MainTree">
+<!-- <root BTCPP_format="4" main_tree_to_execute="MainTree">
   <BehaviorTree ID="MainTree">
     <Repeat num_cycles="-1">
       <Sequence name="AlternateBetweenPoints">
         <NavigateToPose goal="0;map;1.0;0.0;0.0;0.0;0.0;0.0;1.0"/>
         <NavigateToPose goal="0;map;-1.0;0.0;0.0;0.0;0.0;1.0;0.0"/>
+      </Sequence>
+    </Repeat>
+  </BehaviorTree>
+</root> -->
+<root BTCPP_format="4" main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <Repeat num_cycles="-1">
+      <Sequence name="AlternateBetweenPoints">
+        <Sequence>
+          <RandomPoseInSquare center_x="0.0" center_y="0.0" half_size="1.0"
+              frame_id="map" goal="{random_goal}"/>
+          <NavigateToPose goal="{random_goal}"/>
+        </Sequence>
+        <NavigateToPose goal="0;map;0.0;0.0;0.0;0.0;0.0;1.0;0.0"/>
       </Sequence>
     </Repeat>
   </BehaviorTree>

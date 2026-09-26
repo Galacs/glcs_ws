@@ -22,6 +22,14 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}
 )
 
+add_library(random_pose_in_square_bt_node SHARED src/random_pose_in_square.cpp)
+target_include_directories(random_pose_in_square_bt_node PRIVATE include)
+target_link_libraries(random_pose_in_square_bt_node
+  behaviortree_cpp::behaviortree_cpp
+  geometry_msgs::geometry_msgs__rosidl_typesupport_cpp
+)
+install(TARGETS random_pose_in_square_bt_node
+  LIBRARY DESTINATION lib ARCHIVE DESTINATION lib RUNTIME DESTINATION bin)
 
 add_executable(alternate_goals_mission src/alternate_goals_mission_node.cpp)
 target_link_libraries(alternate_goals_mission

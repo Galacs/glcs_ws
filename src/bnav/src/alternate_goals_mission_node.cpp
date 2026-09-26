@@ -15,7 +15,10 @@ int main(int argc, char ** argv)
   auto node = std::make_shared<nav2::LifecycleNode>("alternate_goals_mission");
   node->autostart();
 
-  std::vector<std::string> plugin_libs = {"nav2_navigate_to_pose_action_bt_node"};
+  std::vector<std::string> plugin_libs = {
+    "nav2_navigate_to_pose_action_bt_node",
+    "random_pose_in_square_bt_node",
+  };
   auto engine = std::make_unique<nav2_behavior_tree::BehaviorTreeEngine>(plugin_libs, node);
 
   auto blackboard = BT::Blackboard::create();
@@ -32,6 +35,8 @@ int main(int argc, char ** argv)
   while (rclcpp::ok()) {
     try {
       auto tree = engine->createTreeFromFile(bt_xml_path, blackboard);
+      engine->resetGrootMonitor();
+      engine->addGrootMonitoring(&tree, 3003);
       engine->run(&tree, on_loop, [&]() { return !rclcpp::ok(); });
     } catch (const std::exception & e) {
       RCLCPP_ERROR(
