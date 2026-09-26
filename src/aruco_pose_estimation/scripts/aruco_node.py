@@ -180,22 +180,24 @@ class ArucoNode(rclpy.node.Node):
                                                      aruco_detector=self.aruco_detector,
                                                      marker_size=self.marker_size, matrix_coefficients=self.intrinsic_mat,
                                                      distortion_coefficients=self.distortion, pose_array=pose_array, markers=markers)
-        # if some markers are detected
         if len(markers.marker_ids) > 0:
-            pose_msg = PoseWithCovarianceStamped()
-            pose_msg.header = pose_array.header
-            pose_msg.pose.pose = pose_array.poses[0]
-            pose_msg.pose.covariance = [
-                0.25, 0, 0, 0, 0, 0,
-                0, 0.25, 0, 0, 0, 0,
-                0, 0, 999.0, 0, 0, 0,
-                0, 0, 0, 999.0, 0, 0,
-                0, 0, 0, 0, 999.0, 0,
-                0, 0, 0, 0, 0, 0.1,
-            ]
-            self.pose_pub.publish(pose_msg)
+            if 1 in markers.marker_ids:
+                idx = markers.marker_ids.index(1)
 
-            # Publish the results with the poses and markes positions
+                pose_msg = PoseWithCovarianceStamped()
+                pose_msg.header = pose_array.header
+                pose_msg.pose.pose = pose_array.poses[idx]
+                pose_msg.pose.covariance = [
+                    0.25, 0, 0, 0, 0, 0,
+                    0, 0.25, 0, 0, 0, 0,
+                    0, 0, 999.0, 0, 0, 0,
+                    0, 0, 0, 999.0, 0, 0,
+                    0, 0, 0, 0, 999.0, 0,
+                    0, 0, 0, 0, 0, 0.1,
+                ]
+                self.pose_pub.publish(pose_msg)
+
+            # Publish the results with the poses and markers positions
             self.poses_pub.publish(pose_array)
             self.markers_pub.publish(markers)
 
@@ -236,7 +238,23 @@ class ArucoNode(rclpy.node.Node):
 
         # if some markers are detected
         if len(markers.marker_ids) > 0:
-            # Publish the results with the poses and markes positions
+            if 1 in markers.marker_ids:
+                idx = markers.marker_ids.index(1)
+
+                pose_msg = PoseWithCovarianceStamped()
+                pose_msg.header = pose_array.header
+                pose_msg.pose.pose = pose_array.poses[idx]
+                pose_msg.pose.covariance = [
+                    0.25, 0, 0, 0, 0, 0,
+                    0, 0.25, 0, 0, 0, 0,
+                    0, 0, 999.0, 0, 0, 0,
+                    0, 0, 0, 999.0, 0, 0,
+                    0, 0, 0, 0, 999.0, 0,
+                    0, 0, 0, 0, 0, 0.1,
+                ]
+                self.pose_pub.publish(pose_msg)
+
+            # Publish the results with the poses and markers positions
             self.poses_pub.publish(pose_array)
             self.markers_pub.publish(markers)
 
