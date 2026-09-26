@@ -13,6 +13,7 @@ def generate_launch_description():
     params = {'robot_description': urdf, 'use_sim_time': use_sim_time}
 
     gz_launch_path = PathJoinSubstitution([FindPackageShare('ros_gz_sim'), 'launch', 'gz_sim.launch.py'])
+    world_path = PathJoinSubstitution([FindPackageShare('urdf_test'), 'world.sdf'])
 
     rz_bridge_cfg_path = PathJoinSubstitution([FindPackageShare('urdf_test'), 'config', 'ros_gz_example_bridge.yaml'])
     ekf_cfg_path = PathJoinSubstitution([FindPackageShare('urdf_test'), 'config', 'ekf.yaml'])
@@ -32,8 +33,8 @@ def generate_launch_description():
             PythonLaunchDescriptionSource(gz_launch_path),
             condition=IfCondition(LaunchConfiguration("use_sim_time")),
             launch_arguments={
-                # 'gz_args': PathJoinSubstitution([example_pkg_path, 'worlds/example_world.sdf']),  # Replace with your own world file
-                'gz_args': 'empty.sdf -r',
+                'gz_args': [world_path, ' -r'],
+                # 'gz_args': 'empty.sdf -r',
                 'on_exit_shutdown': 'True'
             }.items(),
         ),

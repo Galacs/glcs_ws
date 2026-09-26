@@ -29,7 +29,7 @@ install(DIRECTORY
 )
 
 install(FILES
-  robot.rviz
+  robot.rviz world.sdf
   DESTINATION share/${PROJECT_NAME}
 )
 
