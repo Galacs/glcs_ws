@@ -1,0 +1,48 @@
+<?xml version="1.0"?>
+<robot name="stepper_foc_test">
+  <link name="base_link"/>
+  <link name="link_1"/>
+  <link name="link_2"/>
+
+  <joint name="stepper_joint_1" type="continuous">
+    <parent link="base_link"/>
+    <child link="link_1"/>
+    <axis xyz="0 0 1"/>
+  </joint>
+  <joint name="stepper_joint_2" type="continuous">
+    <parent link="base_link"/>
+    <child link="link_2"/>
+    <axis xyz="0 0 1"/>
+  </joint>
+
+  <ros2_control name="stepper_foc_bus" type="system">
+    <hardware>
+      <plugin>stepper_foc_1_hw/StepperFoc1Hw</plugin>
+      <!-- Shared by every joint in this block. -->
+      <param name="can_interface">can0</param>
+      <param name="use_fd">true</param>
+      <param name="zero_confirm_delay_ms">50</param>
+      <!-- 0 = disabled. The firmware-side watchdog is the one that matters. -->
+      <param name="command_timeout_ms">0</param>
+      <param name="feedback_timeout_ms">200</param>
+    </hardware>
+
+    <joint name="stepper_joint_1">
+      <param name="node_id">1</param>
+      <param name="max_velocity">10.0</param>      <!-- rad/s, used in position mode -->
+      <param name="zero_position_on_activate">true</param>
+      <command_interface name="velocity"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+
+    <joint name="stepper_joint_2">
+      <param name="node_id">2</param>
+      <param name="max_velocity">10.0</param>
+      <param name="zero_position_on_activate">true</param>
+      <command_interface name="velocity"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+  </ros2_control>
+</robot>

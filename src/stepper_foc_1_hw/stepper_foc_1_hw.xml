@@ -1,0 +1,9 @@
+<library path="stepper_foc_1_hw">
+  <class name="stepper_foc_1_hw/StepperFoc1Hw"
+         type="stepper_foc_1_hw::StepperFoc1Hw"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>
+      ros2_control SystemInterface for SimpleFOC stepper nodes over CAN FD (SocketCAN).
+    </description>
+  </class>
+</library>

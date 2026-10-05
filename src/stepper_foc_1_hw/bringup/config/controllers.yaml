@@ -1,0 +1,26 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 50
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    position_controller:
+      type: forward_command_controller/ForwardCommandController
+
+    velocity_controller:
+      type: forward_command_controller/ForwardCommandController
+
+position_controller:
+  ros__parameters:
+    joints:
+      - stepper_joint_1
+      - stepper_joint_2
+    interface_name: position
+
+velocity_controller:
+  ros__parameters:
+    joints:
+      - stepper_joint_1
+      - stepper_joint_2
+    interface_name: velocity
