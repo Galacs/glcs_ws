@@ -33,21 +33,20 @@ def generate_launch_description():
     joint_state_broadcaster_spawner = Node(
         package='controller_manager',
         executable='spawner',
-        arguments=['joint_state_broadcaster'],
+        arguments=['joint_state_broadcaster', '-p', controllers_yaml_path],
         output='screen',
     )
 
-    # Pick one: SimpleFOC nodes have a single control mode at a time.
     velocity_controller_spawner = Node(
         package='controller_manager',
         executable='spawner',
-        arguments=['velocity_controller'],
+        arguments=['velocity_controller', '-p', controllers_yaml_path],
         output='screen',
     )
     # position_controller_spawner = Node(
     #     package='controller_manager',
     #     executable='spawner',
-    #     arguments=['position_controller'],
+    #     arguments=['position_controller', '-p', controllers_yaml_path],
     #     output='screen',
     # )
 
