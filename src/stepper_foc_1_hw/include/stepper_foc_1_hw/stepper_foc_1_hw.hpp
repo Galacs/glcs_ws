@@ -23,6 +23,13 @@ constexpr uint8_t CMD_SET_TARGET = 0x00;
 constexpr uint8_t CMD_STATE = 0x01;
 constexpr uint8_t CMD_STATUS = 0x02;
 
+constexpr uint32_t CAN_BASE = 0x200;
+constexpr uint32_t CAN_MASK = 0x7E0;
+constexpr uint32_t make_id(uint8_t node, uint8_t cmd) { return CAN_BASE | ((node & 7u) << 2) | (cmd & 3u); }
+constexpr bool     id_is_ours(uint32_t id) { return (id & CAN_MASK) == CAN_BASE; }
+constexpr uint8_t  id_node(uint32_t id)    { return (id >> 2) & 7u; }
+constexpr uint8_t  id_cmd(uint32_t id)     { return id & 3u; }
+
 constexpr uint8_t MODE_IDLE = 0;
 constexpr uint8_t MODE_VELOCITY = 1;
 constexpr uint8_t MODE_POSITION = 2;

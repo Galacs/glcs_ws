@@ -82,9 +82,9 @@ hardware_interface::CallbackReturn StepperFoc1Hw::on_init(
     axis.zero_on_activate =
       getBoolParam(joint.parameters, "zero_position_on_activate", true);
 
-    if (axis.node_id == 0 || axis.node_id > 63)
+    if (axis.node_id == 0 || axis.node_id > 7)
     {
-      RCLCPP_FATAL(logger(), "Joint '%s': node_id must be 1..63", joint.name.c_str());
+      RCLCPP_FATAL(logger(), "Joint '%s': node_id must be 1..7", joint.name.c_str());
       return hardware_interface::CallbackReturn::ERROR;
     }
 
@@ -366,6 +366,17 @@ bool StepperFoc1Hw::openSocket()
     return false;
   }
 
+  struct can_filter rfilter;
+  rfilter.can_id   = wire::CAN_BASE;
+  rfilter.can_mask = wire::CAN_MASK | CAN_EFF_FLAG | CAN_RTR_FLAG;
+  if (::setsockopt(socket_fd_, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter)) < 0)
+  {
+    RCLCPP_FATAL(logger(), "CAN_RAW_FILTER on '%s' failed: %s", can_interface_.c_str(),
+      std::strerror(errno));
+    closeSocket();
+    return false;
+  }
+
   if (use_fd_)
   {
     const int enable = 1;
@@ -442,7 +453,7 @@ bool StepperFoc1Hw::sendFrame(uint8_t node_id, uint8_t cmd_id, const void * payl
 {
   if (socket_fd_ < 0 || len > 8) return false;
 
-  const uint32_t can_id = (static_cast<uint32_t>(node_id) << 5) | (cmd_id & 0x1F);
+  const uint32_t can_id = wire::make_id(node_id, cmd_id);
 
   if (use_fd_)
   {
@@ -502,9 +513,10 @@ bool StepperFoc1Hw::sendSetTarget(Axis & axis)
 void StepperFoc1Hw::handleFrame(uint32_t can_id, uint8_t len, const uint8_t * data)
 {
   if (can_id & (CAN_EFF_FLAG | CAN_RTR_FLAG | CAN_ERR_FLAG)) return;   // standard data frames only
+  if (!wire::id_is_ours(can_id)) return;
 
-  const uint8_t node_id = static_cast<uint8_t>((can_id >> 5) & 0x3F);
-  const uint8_t cmd = static_cast<uint8_t>(can_id & 0x1F);
+  const uint8_t node_id = wire::id_node(can_id);
+  const uint8_t cmd = wire::id_cmd(can_id);
 
   for (auto & axis : axes_)
   {
