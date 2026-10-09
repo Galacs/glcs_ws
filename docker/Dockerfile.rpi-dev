@@ -1,0 +1,21 @@
+FROM docker.io/library/ros:lyrical-ros-base
+
+ARG DEBIAN_FRONTEND=noninteractive
+ENV SHELL=/bin/bash
+
+WORKDIR /tmp/deps
+COPY src/ ./src/
+RUN find src -type f ! -name package.xml -delete \
+ && find src -type d -empty -delete
+
+RUN apt-get update \
+ && rosdep update --rosdistro $ROS_DISTRO \
+ && rosdep install --from-paths src --ignore-src -r -y \
+      --rosdistro $ROS_DISTRO \
+ && rm -rf /var/lib/apt/lists/* /tmp/deps
+
+RUN echo "source /opt/ros/\$ROS_DISTRO/setup.bash" >> ~/.bashrc \
+ && echo "[ -f /home/ws/install/setup.bash ] && source /home/ws/install/setup.bash" >> ~/.bashrc
+
+WORKDIR /home/ws
+CMD ["/bin/bash"]

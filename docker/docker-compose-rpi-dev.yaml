@@ -1,0 +1,28 @@
+services:
+  ros2:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.rpi-dev
+    platform: linux/arm64
+
+    network_mode: host
+    ipc: host
+    pid: host
+    cap_add:
+      - NET_RAW
+
+    working_dir: /home/ws
+    volumes:
+      - ..:/home/ws
+
+    #environment:
+      #ROS_AUTOMATIC_DISCOVERY_RANGE: LOCALHOST
+
+    # devices:
+    #   - /dev/ttyACM0
+    #   - /dev/ttyUSB0
+
+    stdin_open: true
+    tty: true
+    command: bash
+    restart: unless-stopped
