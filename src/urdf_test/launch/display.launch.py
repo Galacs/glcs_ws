@@ -108,14 +108,14 @@ def generate_launch_description():
             output='screen',
             parameters=[ekf_cfg_path, {'use_sim_time': use_sim_time}],
         ),
-        Node(
-            package='tf2_ros',
-            executable='static_transform_publisher',
-            arguments=[
-                '--x', '0', '--y', '0', '--z', '2',
-                '--yaw', '0', '--pitch', '1.57', '--roll', '0',
-                '--frame-id', 'map', '--child-frame-id', 'camera_link']
-        ),
+        # Node(
+        #     package='tf2_ros',
+        #     executable='static_transform_publisher',
+        #     arguments=[
+        #         '--x', '0', '--y', '0', '--z', '2',
+        #         '--yaw', '0', '--pitch', '1.57', '--roll', '0',
+        #         '--frame-id', 'map', '--child-frame-id', 'camera_link']
+        # ),
         # Node(
         #     package='ros_gz_image',
         #     executable='image_bridge',

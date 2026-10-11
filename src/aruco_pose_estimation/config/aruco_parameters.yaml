@@ -13,3 +13,17 @@
         detected_markers_topic: /aruco/markers # Output topic with detected markers (aruco poses + ids)
         markers_visualization_topic: /aruco/poses # Output topic with visualization of detected markers as pose array
         output_image_topic: /aruco/image # Output topic with visualization of detected markers drawn on image
+
+        # Camera calibration (map -> camera_link published on /tf, service: /aruco_node/calibrate)
+        map_frame: map # Parent frame of the published camera transform
+        camera_link_frame: camera_link # Child frame (camera body link, its optical child comes from the URDF)
+        tf_publish_rate: 20.0 # Hz
+        calibrate_on_start: true # Calibrate at startup, retry until it succeeds
+        calibration_frames: 30 # Detections of every reference tag to collect (median is used)
+        calibration_timeout: 15.0 # Seconds before an attempt is abandoned
+        max_reprojection_error_px: 2.0 # Reject calibrations with a larger RMS reprojection error
+        # Reference tags: centres in the map frame [m]. Origin = table corner, x along the 3 m side,
+        # y along the 2 m side. Same order in the three lists.
+        reference_tag_ids: [20, 21, 22, 23]
+        reference_tag_x: [2.4, 0.6, 2.4, 0.6]
+        reference_tag_y: [0.6, 0.6, 1.4, 1.4]

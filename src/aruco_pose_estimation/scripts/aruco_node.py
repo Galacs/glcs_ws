@@ -20,6 +20,18 @@ Published Topics:
     /aruco_image (sensor_msgs.msg.Image)
        Annotated image with marker locations and ids, with markers drawn on it
 
+Services:
+    ~/calibrate (std_srvs.srv.Trigger)
+       Re-calibrates the camera pose from the reference tags (see below).
+
+Camera calibration:
+    The node estimates the pose of the camera in the map frame from the 4 reference
+    tags fixed on the playing area (positions given by the reference_tag_* parameters)
+    and publishes it on /tf as `map_frame -> camera_link_frame` at tf_publish_rate Hz.
+    Nothing is published on that transform until a calibration has succeeded.
+    A calibration runs at startup (calibrate_on_start) and every time ~/calibrate
+    is called. A failed calibration never overwrites the last good one.
+
 Parameters:
     marker_size - size of the markers in meters (default .065)
     aruco_dictionary_id - dictionary that was used to generate markers (default DICT_5X5_250)
@@ -29,6 +41,15 @@ Parameters:
     detected_markers_topic - topic to publish detected markers (default /aruco_markers)
     markers_visualization_topic - topic to publish markers visualization (default /aruco_poses)
     output_image_topic - topic to publish annotated image (default /aruco_image)
+    map_frame - parent frame of the published camera transform (default "map")
+    camera_link_frame - child frame of the published camera transform (default "camera_link")
+    tf_publish_rate - rate [Hz] at which the calibrated transform is published (default 20)
+    calibrate_on_start - calibrate automatically at startup, retrying until it works (default True)
+    calibration_frames - number of detections of every reference tag to collect (default 30)
+    calibration_timeout - give up a calibration attempt after this many seconds (default 15)
+    max_reprojection_error_px - reject a calibration with a larger RMS error (default 2.0)
+    reference_tag_ids / reference_tag_x / reference_tag_y - tag ids and centre positions
+        in the map frame [m]
 
 Author: Simone Giampà
 Version: 2024-01-29
@@ -38,24 +59,56 @@ Version: 2024-01-29
 # ROS2 imports
 import rclpy
 import rclpy.node
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
+from rclpy.executors import MultiThreadedExecutor
+import rclpy.time
+import tf2_ros
 from rclpy.qos import qos_profile_sensor_data
 from cv_bridge import CvBridge
 import message_filters
 
 # Python imports
+import threading
+import time
 import numpy as np
 import cv2
 
 # Local imports for custom defined functions
 from aruco_pose_estimation.utils import ARUCO_DICT
 from aruco_pose_estimation.pose_estimation import pose_estimation
+from aruco_pose_estimation.calibration import (
+    CalibrationError, tag_center_normalized, solve_camera_pose,
+    transform_to_matrix, matrix_to_quat, matrix_to_rpy,
+)
 
 # ROS2 message imports
 from sensor_msgs.msg import CameraInfo
 from sensor_msgs.msg import Image
-from geometry_msgs.msg import PoseArray, PoseWithCovarianceStamped
+from geometry_msgs.msg import PoseArray, PoseWithCovarianceStamped, TransformStamped
+from std_srvs.srv import Trigger
 from aruco_interfaces.msg import ArucoMarkers
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
+
+
+class _CalibrationRequest:
+    """One calibration attempt. `result` is (success, message) once `event` is set."""
+
+    def __init__(self, num_frames, timeout, tag_ids):
+        self.num_frames = num_frames
+        self.deadline = time.monotonic() + timeout
+        self.samples = {i: [] for i in tag_ids}
+        self.event = threading.Event()
+        self.result = None
+        self._lock = threading.Lock()
+
+    def finish(self, success, message):
+        """Set the result once; later calls are ignored. Returns True if this call set it."""
+        with self._lock:
+            if self.event.is_set():
+                return False
+            self.result = (success, message)
+            self.event.set()
+            return True
 
 
 class ArucoNode(rclpy.node.Node):
@@ -130,6 +183,172 @@ class ArucoNode(rclpy.node.Node):
 
         self.bridge = CvBridge()
 
+        self.initialize_calibration()
+
+    def initialize_calibration(self):
+        self._cal_lock = threading.Lock()
+        self._cal_request = None
+        self._pose_lock = threading.Lock()
+        self._T_map_link = None
+        self.calibrated = False
+
+        # TF: the listener is used to read the fixed camera_link -> optical frame
+        # transform from the URDF, the broadcaster to publish map -> camera_link
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+        self.tf_broadcaster = tf2_ros.TransformBroadcaster(self)
+
+        # separate callback groups so the (blocking) service and the TF timer
+        # are not stalled by image processing
+        self.create_service(Trigger, "~/calibrate", self.calibrate_callback,
+                            callback_group=MutuallyExclusiveCallbackGroup())
+        self.create_timer(1.0 / max(self.tf_publish_rate, 0.1), self.publish_tf,
+                          callback_group=MutuallyExclusiveCallbackGroup())
+        # handles calibration timeouts and startup retries
+        self.create_timer(0.5, self.calibration_watchdog)
+
+        if self.calibrate_on_start:
+            self.get_logger().info("Calibration will run at startup.")
+        self.get_logger().info(
+            "Calibration service available at {}".format(self.get_fully_qualified_name() + "/calibrate"))
+
+    def _start_calibration(self) -> _CalibrationRequest:
+        """Start a calibration attempt, or join the one already running."""
+        with self._cal_lock:
+            req = self._cal_request
+            if req is not None and not req.event.is_set():
+                return req
+            req = _CalibrationRequest(self.calibration_frames, self.calibration_timeout, self.ref_ids)
+            self._cal_request = req
+        self.get_logger().info("Calibration started: collecting {} detections of tags {}".format(
+            self.calibration_frames, self.ref_ids))
+        return req
+
+    def _fail_calibration(self, req, message):
+        if req.finish(False, message):
+            self.get_logger().warn("Calibration failed: {}".format(message))
+
+    def _optical_frame(self):
+        if self.camera_frame != "":
+            return self.camera_frame
+        return self.info_msg.header.frame_id
+
+    def calibrate_callback(self, request, response):
+        req = self._start_calibration()
+        # the watchdog enforces the timeout; the extra margin is only a backstop
+        if not req.event.wait(timeout=self.calibration_timeout + 5.0):
+            self._fail_calibration(req, "calibration did not finish in time")
+        response.success, response.message = req.result
+        return response
+
+    def calibration_watchdog(self):
+        with self._cal_lock:
+            req = self._cal_request
+        active = req is not None and not req.event.is_set()
+
+        if active and time.monotonic() > req.deadline:
+            if self.info_msg is None:
+                msg = "no camera info received on {}".format(self.info_topic)
+            else:
+                counts = {i: len(v) for i, v in req.samples.items()}
+                missing = [i for i, n in counts.items() if n < req.num_frames]
+                msg = "timed out; detections per reference tag: {} (need {}), missing/occluded: {}".format(
+                    counts, req.num_frames, missing)
+            self._fail_calibration(req, msg)
+            active = False
+
+        if not active and self.calibrate_on_start and not self.calibrated:
+            self._start_calibration()
+
+    def _calibration_active(self):
+        req = self._cal_request
+        return req is not None and not req.event.is_set()
+
+    def _calibration_step(self, cv_image):
+        """Collect reference tag detections from one frame; solve once enough were collected."""
+        req = self._cal_request
+        if req is None or req.event.is_set() or self.intrinsic_mat is None:
+            return
+
+        corners, marker_ids, _ = self.aruco_detector.detectMarkers(image=cv_image)
+        if marker_ids is not None:
+            for corner, marker_id in zip(corners, marker_ids.flatten()):
+                marker_id = int(marker_id)
+                if marker_id not in req.samples:
+                    continue
+                centre = tag_center_normalized(corner, self.intrinsic_mat, self.distortion)
+                if centre is not None:
+                    req.samples[marker_id].append(centre)
+
+        if all(len(v) >= req.num_frames for v in req.samples.values()):
+            self._finish_calibration(req)
+
+    def _finish_calibration(self, req):
+        K = self.intrinsic_mat
+        focal = 0.5 * (K[0, 0] + K[1, 1])
+
+        # the camera is static, so the median over many frames rejects noise/outliers
+        centres = np.array([np.median(req.samples[i], axis=0) for i in self.ref_ids])
+        spread_px = {i: float(np.linalg.norm(np.std(req.samples[i], axis=0)) * focal) for i in self.ref_ids}
+
+        try:
+            T_map_optical, rms_norm, info = solve_camera_pose(self.ref_xy, centres)
+        except CalibrationError as e:
+            self._fail_calibration(req, str(e))
+            return
+
+        rms_px = rms_norm * focal
+        if rms_px > self.max_reprojection_error_px:
+            self._fail_calibration(
+                req, "reprojection error {:.2f} px exceeds the {:.2f} px limit; check reference_tag_* "
+                     "parameters and tag ids (detection jitter per tag [px]: {})".format(
+                         rms_px, self.max_reprojection_error_px,
+                         {i: round(v, 2) for i, v in spread_px.items()}))
+            return
+
+        # T_map_optical = T_map_link * T_link_optical, with T_link_optical being the fixed
+        # transform from the URDF
+        try:
+            tf = self.tf_buffer.lookup_transform(self.camera_link_frame, self._optical_frame(),
+                                                 rclpy.time.Time())
+        except Exception as e:  # tf2 raises several exception types
+            self._fail_calibration(req, "cannot look up {} -> {}: {}".format(
+                self.camera_link_frame, self._optical_frame(), e))
+            return
+        t, q = tf.transform.translation, tf.transform.rotation
+        T_link_optical = transform_to_matrix([t.x, t.y, t.z], [q.x, q.y, q.z, q.w])
+        T_map_link = T_map_optical @ np.linalg.inv(T_link_optical)
+
+        with self._pose_lock:
+            self._T_map_link = T_map_link
+        self.calibrated = True
+
+        roll, pitch, yaw = matrix_to_rpy(T_map_link[:3, :3])
+        message = ("camera_link in {}: xyz = [{:.4f}, {:.4f}, {:.4f}] m, rpy = [{:.4f}, {:.4f}, {:.4f}] rad, "
+                   "reprojection RMS {:.2f} px".format(
+                       self.map_frame, *T_map_link[:3, 3], roll, pitch, yaw, rms_px))
+        if req.finish(True, message):
+            self.get_logger().info("Calibration succeeded: " + message)
+
+    def publish_tf(self):
+        with self._pose_lock:
+            T = self._T_map_link
+        if T is None:
+            return
+        qx, qy, qz, qw = matrix_to_quat(T[:3, :3])
+        msg = TransformStamped()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = self.map_frame
+        msg.child_frame_id = self.camera_link_frame
+        msg.transform.translation.x = float(T[0, 3])
+        msg.transform.translation.y = float(T[1, 3])
+        msg.transform.translation.z = float(T[2, 3])
+        msg.transform.rotation.x = float(qx)
+        msg.transform.rotation.y = float(qy)
+        msg.transform.rotation.z = float(qz)
+        msg.transform.rotation.w = float(qw)
+        self.tf_broadcaster.sendTransform(msg)
+
     def info_callback(self, info_msg):
         self.info_msg = info_msg
         # get the intrinsic matrix and distortion coefficients from the camera info
@@ -151,6 +370,9 @@ class ArucoNode(rclpy.node.Node):
 
         # convert the image messages to cv2 format
         cv_image = self.bridge.imgmsg_to_cv2(img_msg, desired_encoding="rgb8")
+
+        if self._calibration_active():
+            self._calibration_step(cv_image)
 
         # create the ArucoMarkers and PoseArray messages
         markers = ArucoMarkers()
@@ -214,6 +436,9 @@ class ArucoNode(rclpy.node.Node):
         # convert the image messages to cv2 format
         cv_depth_image = self.bridge.imgmsg_to_cv2(depth_msg, desired_encoding="16UC1")
         cv_image = self.bridge.imgmsg_to_cv2(rgb_msg, desired_encoding="rgb8")
+
+        if self._calibration_active():
+            self._calibration_step(cv_image)
 
         # create the ArucoMarkers and PoseArray messages
         markers = ArucoMarkers()
@@ -353,6 +578,57 @@ class ArucoNode(rclpy.node.Node):
             ),
         )
 
+        self.declare_parameter(
+            name="map_frame", value="map",
+            descriptor=ParameterDescriptor(
+                type=ParameterType.PARAMETER_STRING,
+                description="Parent frame of the published camera transform."))
+        self.declare_parameter(
+            name="camera_link_frame", value="camera_link",
+            descriptor=ParameterDescriptor(
+                type=ParameterType.PARAMETER_STRING,
+                description="Child frame of the published camera transform (the camera body link)."))
+        self.declare_parameter(
+            name="tf_publish_rate", value=20.0,
+            descriptor=ParameterDescriptor(
+                type=ParameterType.PARAMETER_DOUBLE,
+                description="Rate [Hz] at which map -> camera_link is published."))
+        self.declare_parameter(
+            name="calibrate_on_start", value=True,
+            descriptor=ParameterDescriptor(
+                type=ParameterType.PARAMETER_BOOL,
+                description="Calibrate automatically at startup (retries until it succeeds)."))
+        self.declare_parameter(
+            name="calibration_frames", value=30,
+            descriptor=ParameterDescriptor(
+                type=ParameterType.PARAMETER_INTEGER,
+                description="Detections of every reference tag to collect per calibration."))
+        self.declare_parameter(
+            name="calibration_timeout", value=15.0,
+            descriptor=ParameterDescriptor(
+                type=ParameterType.PARAMETER_DOUBLE,
+                description="Seconds before a calibration attempt is abandoned."))
+        self.declare_parameter(
+            name="max_reprojection_error_px", value=2.0,
+            descriptor=ParameterDescriptor(
+                type=ParameterType.PARAMETER_DOUBLE,
+                description="Calibrations with a larger RMS reprojection error are rejected."))
+        self.declare_parameter(
+            name="reference_tag_ids", value=[20, 21, 22, 23],
+            descriptor=ParameterDescriptor(
+                type=ParameterType.PARAMETER_INTEGER_ARRAY,
+                description="Ids of the reference tags fixed on the playing area."))
+        self.declare_parameter(
+            name="reference_tag_x", value=[2.4, 0.6, 2.4, 0.6],
+            descriptor=ParameterDescriptor(
+                type=ParameterType.PARAMETER_DOUBLE_ARRAY,
+                description="x of the reference tag centres in the map frame [m] (same order as ids)."))
+        self.declare_parameter(
+            name="reference_tag_y", value=[0.6, 0.6, 1.4, 1.4],
+            descriptor=ParameterDescriptor(
+                type=ParameterType.PARAMETER_DOUBLE_ARRAY,
+                description="y of the reference tag centres in the map frame [m] (same order as ids)."))
+
         # read parameters from aruco_params.yaml and store them
         self.marker_size = (
             self.get_parameter("marker_size").get_parameter_value().double_value
@@ -402,14 +678,40 @@ class ArucoNode(rclpy.node.Node):
             self.get_parameter("output_image_topic").get_parameter_value().string_value
         )
 
+        # Calibration parameters
+        self.map_frame = self.get_parameter("map_frame").value
+        self.camera_link_frame = self.get_parameter("camera_link_frame").value
+        self.tf_publish_rate = float(self.get_parameter("tf_publish_rate").value)
+        self.calibrate_on_start = bool(self.get_parameter("calibrate_on_start").value)
+        self.calibration_frames = int(self.get_parameter("calibration_frames").value)
+        self.calibration_timeout = float(self.get_parameter("calibration_timeout").value)
+        self.max_reprojection_error_px = float(self.get_parameter("max_reprojection_error_px").value)
+
+        self.ref_ids = [int(i) for i in self.get_parameter("reference_tag_ids").value]
+        ref_x = list(self.get_parameter("reference_tag_x").value)
+        ref_y = list(self.get_parameter("reference_tag_y").value)
+        if not (len(self.ref_ids) == len(ref_x) == len(ref_y)) or len(self.ref_ids) < 4:
+            raise ValueError("reference_tag_ids/x/y must have the same length and contain at least 4 tags")
+        if len(set(self.ref_ids)) != len(self.ref_ids):
+            raise ValueError("reference_tag_ids contains duplicates")
+        self.ref_xy = np.column_stack((ref_x, ref_y)).astype(np.float64)
+        self.get_logger().info("Reference tags (id: x, y in {}): {}".format(
+            self.map_frame, {i: tuple(p) for i, p in zip(self.ref_ids, self.ref_xy)}))
+
 
 def main():
     rclpy.init()
     node = ArucoNode()
-    rclpy.spin(node)
-
-    node.destroy_node()
-    rclpy.shutdown()
+    executor = MultiThreadedExecutor(num_threads=4)
+    executor.add_node(node)
+    try:
+        executor.spin()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == "__main__":
