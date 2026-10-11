@@ -88,6 +88,13 @@ def generate_launch_description():
         description='Name of the topic to publish the image with the detected markers',
     )
 
+    rviz_arg = DeclareLaunchArgument(
+        name='rviz',
+        default_value='true',
+        description='Launch RViz alongside the aruco node',
+        choices=['true', 'false', 'True', 'False']
+    )
+
     aruco_node = Node(
         package='aruco_pose_estimation',
         executable='aruco_node.py',
@@ -143,7 +150,8 @@ def generate_launch_description():
     rviz2_node = Node(
         package='rviz2',
         executable='rviz2',
-        arguments=['-d', rviz_file]
+        arguments=['-d', rviz_file],
+        condition=IfCondition(LaunchConfiguration('rviz'))
     )
 
     return LaunchDescription([
@@ -158,6 +166,7 @@ def generate_launch_description():
         detected_markers_topic_arg,
         markers_visualization_topic_arg,
         output_image_topic_arg,
+        rviz_arg,
 
         # Nodes
         aruco_node, 
