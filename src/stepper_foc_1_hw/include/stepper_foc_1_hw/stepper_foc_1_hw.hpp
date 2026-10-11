@@ -87,6 +87,7 @@ private:
     double max_velocity{10.0};   // rad/s, position-mode velocity limit
     double max_current{0.0};     // A, velocity-mode current limit; 0 = firmware default
     bool zero_on_activate{true};
+    double direction{1.0};       // -1 when "invert" is true
     bool cmd_position{false};
     bool cmd_velocity{false};
 

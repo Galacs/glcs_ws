@@ -81,6 +81,7 @@ hardware_interface::CallbackReturn StepperFoc1Hw::on_init(
     axis.max_current = getDoubleParam(joint.parameters, "max_current", 0.0);
     axis.zero_on_activate =
       getBoolParam(joint.parameters, "zero_position_on_activate", true);
+    axis.direction = getBoolParam(joint.parameters, "invert", false) ? -1.0 : 1.0;
 
     if (axis.node_id == 0 || axis.node_id > 7)
     {
@@ -487,12 +488,12 @@ bool StepperFoc1Hw::sendSetTarget(Axis & axis)
 
   if (axis.enabled && axis.mode == wire::MODE_POSITION)
   {
-    msg.target = static_cast<float>(axis.position_command);
+    msg.target = static_cast<float>(axis.direction * axis.position_command);
     msg.limit = static_cast<int16_t>(std::lround(axis.max_velocity * 100.0));
   }
   else if (axis.enabled && axis.mode == wire::MODE_VELOCITY)
   {
-    msg.target = static_cast<float>(axis.velocity_command);
+    msg.target = static_cast<float>(axis.direction * axis.velocity_command);
     msg.limit = static_cast<int16_t>(std::lround(axis.max_current * 100.0));
   }
 
@@ -524,23 +525,15 @@ void StepperFoc1Hw::handleFrame(uint32_t can_id, uint8_t len, const uint8_t * da
 
     if (cmd == wire::CMD_STATE && len >= sizeof(wire::State))
     {
-      if (!axis.position_primed && clock_.now() >= axis.prime_not_before)
-      {
-        axis.position_command = axis.position_state;
-        axis.velocity_command = 0.0;
-        axis.position_primed = true;
-      }
       wire::State msg;
       std::memcpy(&msg, data, sizeof(msg));
-      axis.position_state = msg.pos;
-      axis.velocity_state = msg.vel;
+      axis.position_state = axis.direction * msg.pos;
+      axis.velocity_state = axis.direction * msg.vel;
       axis.has_state = true;
       axis.last_state_stamp = clock_.now();
 
-      if (!axis.position_primed)
+      if (!axis.position_primed && clock_.now() >= axis.prime_not_before)
       {
-        // Same idea as priming the CL57PR command from the driver's counter:
-        // start the controller from where the axis actually is.
         axis.position_command = axis.position_state;
         axis.velocity_command = 0.0;
         axis.position_primed = true;
