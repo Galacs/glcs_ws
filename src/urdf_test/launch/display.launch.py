@@ -33,7 +33,7 @@ def generate_launch_description():
             PythonLaunchDescriptionSource(gz_launch_path),
             condition=IfCondition(LaunchConfiguration("use_sim_time")),
             launch_arguments={
-                'gz_args': [world_path, ' -r'],
+                'gz_args': [world_path, ' -r -s'],
                 # 'gz_args': 'empty.sdf -r',
                 'on_exit_shutdown': 'True'
             }.items(),
@@ -138,11 +138,13 @@ def generate_launch_description():
         Node(package='controller_manager', executable='spawner',
             arguments=['joint_state_broadcaster',
                         '--param-file', controllers_cfg,
-                        '--controller-manager-timeout', '30']),
+                        '--controller-manager-timeout', '30',
+                        '--switch-timeout', '30']),
         Node(package='controller_manager', executable='spawner',
             arguments=['mecanum_drive_controller',
                         '--param-file', controllers_cfg,
                         '--controller-manager-timeout', '30',
+                        '--switch-timeout', '30',
                         '--controller-ros-args',
                         '-r /mecanum_drive_controller/reference:=/cmd_vel '
                         '-r /mecanum_drive_controller/odometry:=/odom '
