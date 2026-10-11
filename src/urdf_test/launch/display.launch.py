@@ -26,6 +26,9 @@ def generate_launch_description():
             'use_sim_time',
             default_value='false',
             description='Use sim time if true'),
+        DeclareLaunchArgument(
+            'rviz', default_value='true',
+            description='Start rviz'),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(gz_launch_path),
             condition=IfCondition(LaunchConfiguration("use_sim_time")),
@@ -128,6 +131,7 @@ def generate_launch_description():
             executable='rviz2',
             name='rviz2',
             output='screen',
+            condition=IfCondition(LaunchConfiguration('rviz')),
             arguments=['-d', PathJoinSubstitution([FindPackageShare('urdf_test'), 'robot.rviz',])],
             parameters=[{'use_sim_time': use_sim_time}],
         ),
