@@ -1,14 +1,15 @@
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, Command, AndSubstitution, OrSubstitution, NotSubstitution
-from launch.conditions import IfCondition
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, Command
+from launch.conditions import IfCondition, UnlessCondition
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
     use_sim_time = LaunchConfiguration('use_sim_time')
-    urdf = Command(['xacro ', PathJoinSubstitution([FindPackageShare('urdf_test'), 'description', 'model.urdf.xacro'])])
+    urdf = Command(['xacro ', PathJoinSubstitution([FindPackageShare('urdf_test'), 'description', 'model.urdf.xacro']),
+                    ' use_sim:=', use_sim_time])
     urdf_cam = Command(['xacro ', PathJoinSubstitution([FindPackageShare('urdf_test'), 'description', 'mcc_camera.urdf.xacro'])])
     params = {'robot_description': urdf, 'use_sim_time': use_sim_time}
 
@@ -25,10 +26,6 @@ def generate_launch_description():
             'use_sim_time',
             default_value='false',
             description='Use sim time if true'),
-       DeclareLaunchArgument(
-            'joint_gui',
-            default_value='True',
-            description='Flag to start joint_state_publisher_gui'),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(gz_launch_path),
             condition=IfCondition(LaunchConfiguration("use_sim_time")),
@@ -86,25 +83,12 @@ def generate_launch_description():
             parameters=[{'robot_description': urdf_cam, 'use_sim_time': use_sim_time}],
         ),
         Node(
-            package='joint_state_publisher',
-            executable='joint_state_publisher',
-            name='joint_state_publisher',
-            parameters=[params],
-            condition=IfCondition(
-                AndSubstitution(
-                    NotSubstitution(LaunchConfiguration('joint_gui')),
-                    NotSubstitution(LaunchConfiguration("use_sim_time"))
-                )),
-        ),
-        Node(
-            package='joint_state_publisher_gui',
-            executable='joint_state_publisher_gui',
-            name='joint_state_publisher_gui',
-            condition=IfCondition(
-                AndSubstitution(
-                    LaunchConfiguration('joint_gui'),
-                    NotSubstitution(LaunchConfiguration("use_sim_time"))
-                )),
+            package='controller_manager',
+            executable='ros2_control_node',
+            output='screen',
+            parameters=[controllers_cfg, {'use_sim_time': use_sim_time}],
+            remappings=[('~/robot_description', '/robot_description')],
+            condition=UnlessCondition(use_sim_time),
         ),
         # Node(
         #     package='tf2_ros',
@@ -149,14 +133,14 @@ def generate_launch_description():
         ),
         Node(package='controller_manager', executable='spawner',
             arguments=['joint_state_broadcaster',
-                        '--param-file', controllers_cfg],
-            condition=IfCondition(LaunchConfiguration('use_sim_time'))),
+                        '--param-file', controllers_cfg,
+                        '--controller-manager-timeout', '30']),
         Node(package='controller_manager', executable='spawner',
-        arguments=['mecanum_drive_controller',
-                    '--param-file', controllers_cfg,
-                    '--controller-ros-args',
-                    '-r /mecanum_drive_controller/reference:=/cmd_vel '
-                    '-r /mecanum_drive_controller/odometry:=/odom '
-                    '-r /mecanum_drive_controller/tf_odometry:=/tf'],
-        condition=IfCondition(LaunchConfiguration('use_sim_time'))),
+            arguments=['mecanum_drive_controller',
+                        '--param-file', controllers_cfg,
+                        '--controller-manager-timeout', '30',
+                        '--controller-ros-args',
+                        '-r /mecanum_drive_controller/reference:=/cmd_vel '
+                        '-r /mecanum_drive_controller/odometry:=/odom '
+                        '-r /mecanum_drive_controller/tf_odometry:=/tf']),
     ])

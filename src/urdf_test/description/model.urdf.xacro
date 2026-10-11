@@ -3,7 +3,13 @@
     <xacro:include filename="$(find urdf_test)/description/constants.xacro" />
     <xacro:include filename="$(find urdf_test)/description/inertia.xacro" />
     <xacro:include filename="$(find urdf_test)/description/materials.xacro" />
-    <xacro:include filename="$(find urdf_test)/description/gazebo_control.xacro" />
+    <xacro:arg name="use_sim" default="true" />
+    <xacro:if value="$(arg use_sim)">
+        <xacro:include filename="$(find urdf_test)/description/gazebo_control.xacro" />
+    </xacro:if>
+    <xacro:unless value="$(arg use_sim)">
+        <xacro:include filename="$(find urdf_test)/description/hardware_control.xacro" />
+    </xacro:unless>
     <xacro:include filename="$(find urdf_test)/description/aruco.xacro" />
 
     <link name="base_link"></link>

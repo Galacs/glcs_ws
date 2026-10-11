@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+    <xacro:property name="invert_left_side"  value="false" />
+    <xacro:property name="invert_right_side" value="false" />
+
+    <xacro:macro name="stepper_wheel_iface" params="name node_id invert">
+        <joint name="${name}_wheel_joint">
+            <param name="node_id">${node_id}</param>
+            <param name="invert">${str(invert).lower()}</param>
+            <param name="max_velocity">10.0</param>
+            <param name="zero_position_on_activate">true</param>
+            <command_interface name="velocity"/>
+            <state_interface name="position"/>
+            <state_interface name="velocity"/>
+        </joint>
+    </xacro:macro>
+
+    <ros2_control name="stepper_foc_bus" type="system">
+        <hardware>
+            <plugin>stepper_foc_1_hw/StepperFoc1Hw</plugin>
+            <param name="can_interface">can0</param>
+            <param name="use_fd">true</param>
+            <param name="zero_confirm_delay_ms">50</param>
+            <param name="command_timeout_ms">0</param>
+            <param name="feedback_timeout_ms">200</param>
+        </hardware>
+        <xacro:stepper_wheel_iface name="front_left"  node_id="1" invert="${invert_left_side}"/>
+        <xacro:stepper_wheel_iface name="front_right" node_id="2" invert="${invert_right_side}"/>
+        <xacro:stepper_wheel_iface name="rear_left"   node_id="3" invert="${invert_left_side}"/>
+        <xacro:stepper_wheel_iface name="rear_right"  node_id="4" invert="${invert_right_side}"/>
+    </ros2_control>
+</robot>
