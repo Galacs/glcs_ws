@@ -7,6 +7,13 @@ ekf_filter_node:
                                0.025, 0.025, 0.04, 0.01, 0.01, 0.02,
                                0.01, 0.01, 0.015]
 
+    # Pose initiale
+    initial_estimate_covariance: [4.0,    4.0,    1.0e-9,
+                                  1.0e-9, 1.0e-9, 3.0,
+                                  1.0e-9, 1.0e-9, 1.0e-9,
+                                  1.0e-9, 1.0e-9, 1.0e-9,
+                                  1.0e-9, 1.0e-9, 1.0e-9]
+
     map_frame: map
     odom_frame: odom
     base_link_frame: base_link
