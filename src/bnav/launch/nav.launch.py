@@ -84,6 +84,17 @@ def generate_launch_description():
         ),
         Node(
             package='bnav',
+            executable='box_obstacles_node.py',
+            name='box_obstacles',
+            output='screen',
+            parameters=[
+                PathJoinSubstitution(
+                    [FindPackageShare('bnav'), 'config', 'box_obstacles.yaml']),
+                {'use_sim_time': use_sim_time},
+            ],
+        ),
+        Node(
+            package='bnav',
             executable='alternate_goals_mission',
             name='alternate_goals_mission',
             output='screen',

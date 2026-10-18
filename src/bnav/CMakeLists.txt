@@ -7,12 +7,20 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
+find_package(ament_cmake_python REQUIRED)
 # uncomment the following section in order to fill in
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
 find_package(nav2_behavior_tree REQUIRED)
 find_package(ament_index_cpp REQUIRED)
 find_package(nav2_ros_common REQUIRED)
+
+ament_python_install_package(${PROJECT_NAME})
+
+install(PROGRAMS
+  scripts/box_obstacles_node.py
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 install(DIRECTORY
   config
