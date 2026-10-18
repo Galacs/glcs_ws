@@ -57,8 +57,8 @@ def generate_launch_description():
             condition=IfCondition(LaunchConfiguration("use_sim_time")),
             launch_arguments=[('topic', 'mcc/robot_description'),
                               ('entity_name', 'mcc_camera'),
-                              ('x', '0.0'), ('y', '0.0'), ('z', '2.0'),
-                              ('R', '0.0'), ('P', '1.57'), ('Y', '0.0')],
+                              ('x', '0.0'), ('y', '1.0'), ('z', '1.5'),
+                              ('R', '0.0'), ('P', '1.1'), ('Y', '-1.57')],
         ),
         Node(
             package='ros_gz_bridge',
