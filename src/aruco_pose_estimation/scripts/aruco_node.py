@@ -68,6 +68,7 @@ from cv_bridge import CvBridge
 import message_filters
 
 # Python imports
+import math
 import threading
 import time
 import numpy as np
@@ -78,13 +79,13 @@ from aruco_pose_estimation.utils import ARUCO_DICT
 from aruco_pose_estimation.pose_estimation import pose_estimation
 from aruco_pose_estimation.calibration import (
     CalibrationError, tag_center_normalized, solve_camera_pose,
-    transform_to_matrix, matrix_to_quat, matrix_to_rpy,
+    transform_to_matrix, matrix_to_quat, matrix_to_rpy, quat_to_matrix, box_pose_in_map,
 )
 
 # ROS2 message imports
 from sensor_msgs.msg import CameraInfo
 from sensor_msgs.msg import Image
-from geometry_msgs.msg import PoseArray, PoseWithCovarianceStamped, TransformStamped
+from geometry_msgs.msg import Pose, PoseArray, PoseWithCovarianceStamped, TransformStamped
 from std_srvs.srv import Trigger
 from aruco_interfaces.msg import ArucoMarkers
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
@@ -166,6 +167,7 @@ class ArucoNode(rclpy.node.Node):
         self.pose_pub = self.create_publisher(PoseWithCovarianceStamped, '/pose', 10)
         self.markers_pub = self.create_publisher(ArucoMarkers, self.detected_markers_topic, 10)
         self.image_pub = self.create_publisher(Image, self.output_image_topic, 10)
+        self.boxes_pub = self.create_publisher(PoseArray, self.boxes_topic, 10)
 
         # Set up fields for camera parameters
         self.info_msg = None
@@ -190,6 +192,7 @@ class ArucoNode(rclpy.node.Node):
         self._cal_request = None
         self._pose_lock = threading.Lock()
         self._T_map_link = None
+        self._T_map_optical = None
         self.calibrated = False
 
         # TF: the listener is used to read the fixed camera_link -> optical frame
@@ -226,7 +229,7 @@ class ArucoNode(rclpy.node.Node):
 
     def _fail_calibration(self, req, message):
         if req.finish(False, message):
-            self.get_logger().warn("Calibration failed: {}".format(message))
+            self.get_logger().warning("Calibration failed: {}".format(message))
 
     def _optical_frame(self):
         if self.camera_frame != "":
@@ -321,6 +324,7 @@ class ArucoNode(rclpy.node.Node):
 
         with self._pose_lock:
             self._T_map_link = T_map_link
+            self._T_map_optical = T_map_optical
         self.calibrated = True
 
         roll, pitch, yaw = matrix_to_rpy(T_map_link[:3, :3])
@@ -349,6 +353,39 @@ class ArucoNode(rclpy.node.Node):
         msg.transform.rotation.w = float(qw)
         self.tf_broadcaster.sendTransform(msg)
 
+    def _publish_boxes(self, markers):
+        """
+        Publish the centre and yaw of every detected box in the map frame
+        (PoseArray, always published once calibrated, empty if no box is seen).
+        """
+        with self._pose_lock:
+            T = self._T_map_optical
+        if T is None:
+            return
+
+        boxes = PoseArray()
+        boxes.header.frame_id = self.map_frame
+        boxes.header.stamp = markers.header.stamp
+        for marker_id, pose in zip(markers.marker_ids, markers.poses):
+            if int(marker_id) not in self.box_ids:
+                continue
+            p, q = pose.position, pose.orientation
+            res = box_pose_in_map(T, [p.x, p.y, p.z], quat_to_matrix([q.x, q.y, q.z, q.w]),
+                                  self.box_tag_to_center, self.box_center_height,
+                                  self.box_long_axis)
+            if res is None:
+                self.get_logger().warning(
+                    "box tag ignored: ray misses the table or the box is not lying down",
+                    throttle_duration_sec=5.0)
+                continue
+            x, y, z, yaw = res
+            box = Pose()
+            box.position.x, box.position.y, box.position.z = x, y, z
+            box.orientation.z = math.sin(yaw / 2.0)
+            box.orientation.w = math.cos(yaw / 2.0)
+            boxes.poses.append(box)
+        self.boxes_pub.publish(boxes)
+
     def info_callback(self, info_msg):
         self.info_msg = info_msg
         # get the intrinsic matrix and distortion coefficients from the camera info
@@ -365,7 +402,7 @@ class ArucoNode(rclpy.node.Node):
 
     def image_callback(self, img_msg: Image):
         if self.info_msg is None:
-            self.get_logger().warn("No camera info has been received!")
+            self.get_logger().warning("No camera info has been received!")
             return
 
         # convert the image messages to cv2 format
@@ -402,6 +439,7 @@ class ArucoNode(rclpy.node.Node):
                                                      aruco_detector=self.aruco_detector,
                                                      marker_size=self.marker_size, matrix_coefficients=self.intrinsic_mat,
                                                      distortion_coefficients=self.distortion, pose_array=pose_array, markers=markers)
+        self._publish_boxes(markers)
         if len(markers.marker_ids) > 0:
             if 1 in markers.marker_ids:
                 idx = markers.marker_ids.index(1)
@@ -428,7 +466,7 @@ class ArucoNode(rclpy.node.Node):
 
     def depth_image_callback(self, depth_msg: Image):
         if self.info_msg is None:
-            self.get_logger().warn("No camera info has been received!")
+            self.get_logger().warning("No camera info has been received!")
             return
 
     def rgb_depth_sync_callback(self, rgb_msg: Image, depth_msg: Image):
@@ -460,6 +498,7 @@ class ArucoNode(rclpy.node.Node):
                                                      aruco_detector=self.aruco_detector,
                                                      marker_size=self.marker_size, matrix_coefficients=self.intrinsic_mat,
                                                      distortion_coefficients=self.distortion, pose_array=pose_array, markers=markers)
+        self._publish_boxes(markers)
 
         # if some markers are detected
         if len(markers.marker_ids) > 0:
@@ -629,6 +668,32 @@ class ArucoNode(rclpy.node.Node):
                 type=ParameterType.PARAMETER_DOUBLE_ARRAY,
                 description="y of the reference tag centres in the map frame [m] (same order as ids)."))
 
+        self.declare_parameter(
+            name="boxes_topic", value="/aruco/boxes",
+            descriptor=ParameterDescriptor(
+                type=ParameterType.PARAMETER_STRING,
+                description="Output PoseArray with the centre and yaw of every box, in map_frame."))
+        self.declare_parameter(
+            name="box_marker_ids", value=[13],
+            descriptor=ParameterDescriptor(
+                type=ParameterType.PARAMETER_INTEGER_ARRAY,
+                description="Ids of the tags stuck on the boxes."))
+        self.declare_parameter(
+            name="box_tag_to_center", value=0.055,
+            descriptor=ParameterDescriptor(
+                type=ParameterType.PARAMETER_DOUBLE,
+                description="Distance from a box tag to the box centre, along the tag normal [m]."))
+        self.declare_parameter(
+            name="box_center_height", value=0.055,
+            descriptor=ParameterDescriptor(
+                type=ParameterType.PARAMETER_DOUBLE,
+                description="Height of the box centre above the table when it lies down [m]."))
+        self.declare_parameter(
+            name="box_tag_long_axis", value="x",
+            descriptor=ParameterDescriptor(
+                type=ParameterType.PARAMETER_STRING,
+                description="In-plane tag axis (x or y) parallel to the long side of the box."))
+
         # read parameters from aruco_params.yaml and store them
         self.marker_size = (
             self.get_parameter("marker_size").get_parameter_value().double_value
@@ -686,6 +751,12 @@ class ArucoNode(rclpy.node.Node):
         self.calibration_frames = int(self.get_parameter("calibration_frames").value)
         self.calibration_timeout = float(self.get_parameter("calibration_timeout").value)
         self.max_reprojection_error_px = float(self.get_parameter("max_reprojection_error_px").value)
+
+        self.boxes_topic = self.get_parameter("boxes_topic").value
+        self.box_ids = {int(i) for i in self.get_parameter("box_marker_ids").value}
+        self.box_tag_to_center = float(self.get_parameter("box_tag_to_center").value)
+        self.box_center_height = float(self.get_parameter("box_center_height").value)
+        self.box_long_axis = {"x": 0, "y": 1}[self.get_parameter("box_tag_long_axis").value]
 
         self.ref_ids = [int(i) for i in self.get_parameter("reference_tag_ids").value]
         ref_x = list(self.get_parameter("reference_tag_x").value)

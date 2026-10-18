@@ -18,6 +18,8 @@ Only the *centres* of the tags are used, not their orientation. This means:
     spacing between the tags).
 """
 
+import math
+
 import cv2
 import numpy as np
 
@@ -157,3 +159,49 @@ def matrix_to_rpy(r):
     roll = np.arctan2(r[2, 1], r[2, 2])
     yaw = np.arctan2(r[1, 0], r[0, 0])
     return roll, pitch, yaw
+
+
+def box_pose_in_map(t_map_optical, p_cam, r_cam_tag, tag_to_center, center_height,
+                    long_axis_index=0, min_horizontal=0.3):
+    """
+    Centre (x, y, z) and yaw of a box lying flat on the table, from the pose of
+    one of its tags as published by the detector.
+
+    The estimated *distance* of a small tag is the least reliable part of its
+    pose (it depends on marker_size and on corner noise), so it is not used.
+    Only the direction from the camera to the tag is, which is exact. The box
+    centre is always `center_height` above the table, and the tag centre sits
+    `tag_to_center` in front of it along the tag normal n, so the tag is at
+
+        z_tag = center_height + tag_to_center * n_z
+
+    Intersecting the camera->tag ray with that height gives the tag, and the
+    box centre is `tag_to_center` behind it. This works for a top face and for
+    a side face alike.
+
+    t_map_optical: 4x4 pose of the camera optical frame in the map
+    p_cam:         tag position in the optical frame (only its direction is used)
+    r_cam_tag:     3x3 tag orientation in the optical frame (z = out of the tag)
+    long_axis_index: in-plane tag axis (0 = x, 1 = y) parallel to the box's long side
+
+    Returns (x, y, z, yaw), or None if the ray does not reach the table or the
+    long axis is vertical (box not lying down).
+    """
+    r_map_optical = t_map_optical[:3, :3]
+    cam = t_map_optical[:3, 3]
+
+    ray = r_map_optical @ np.asarray(p_cam, dtype=np.float64)
+    ray /= np.linalg.norm(ray)
+    if ray[2] > -1e-3:
+        return None
+
+    r_tag = r_map_optical @ r_cam_tag
+    n = r_tag[:, 2]
+    tag_z = center_height + tag_to_center * n[2]
+    tag = cam + ray * ((tag_z - cam[2]) / ray[2])
+    centre = tag - tag_to_center * n
+
+    axis = r_tag[:, long_axis_index]
+    if math.hypot(axis[0], axis[1]) < min_horizontal:
+        return None
+    return float(centre[0]), float(centre[1]), float(centre[2]), float(math.atan2(axis[1], axis[0]))

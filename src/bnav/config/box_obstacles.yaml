@@ -1,29 +1,18 @@
 /box_obstacles:
     ros__parameters:
-        markers_topic: /aruco/markers
+        boxes_topic: /aruco/boxes     # box centres + yaw in the map frame, from aruco_node
         base_map_topic: /map          # only used to copy size/resolution/origin
         grid_topic: /box_map          # consumed by the box_layer in nav2_params.yaml
-        target_frame: map
-        box_marker_ids: [13]
 
         # Box (lying on its long side)
         box_length: 0.32
         box_width: 0.11
-        tag_to_center: 0.055          # tag plane -> box centre, along tag -Z
-        tag_long_axis: x              # in-plane tag axis parallel to the long side (x or y)
         footprint_padding: 0.0        # extra margin on top of the Nav2 inflation layer
-
-        # aruco_node estimates every pose with marker_size (0.071). If the box tag's
-        # black square is really 0.080 m, distances are off by 0.080/0.071. Set
-        # box_tag_size equal to assumed_marker_size to disable the correction.
-        assumed_marker_size: 0.071
-        box_tag_size: 0.080
 
         # Tracking
         timeout: 0.0                  # s to keep a box after it was last seen (0 = drop at once)
-        no_message_timeout: 1.0       # s without any marker message before boxes are dropped (timeout = 0 only)
+        no_message_timeout: 1.0       # s without any /aruco/boxes message before boxes are dropped
         association_distance: 0.08    # m, same box across frames / seen through two faces
         max_boxes: 15
-        publish_rate: 10.0           # Hz, how often the grid is recomputed
-        heartbeat_period: 2.0        # s, republish the grid even if unchanged
-        tf_timeout: 0.1
+        publish_rate: 10.0            # Hz, how often the grid is recomputed
+        heartbeat_period: 2.0         # s, republish the grid even if unchanged

@@ -27,3 +27,10 @@
         reference_tag_ids: [20, 21, 22, 23]
         reference_tag_x: [2.4, 0.6, 2.4, 0.6]
         reference_tag_y: [0.6, 0.6, 1.4, 1.4]
+
+        # Boxes: centre and yaw of every box tag, in map_frame, published on boxes_topic
+        boxes_topic: /aruco/boxes
+        box_marker_ids: [13]
+        box_tag_to_center: 0.055 # Tag plane -> box centre, along the tag normal [m]
+        box_center_height: 0.055 # Height of the box centre above the table when lying down [m]
+        box_tag_long_axis: x # In-plane tag axis (x or y) parallel to the long side of the box
