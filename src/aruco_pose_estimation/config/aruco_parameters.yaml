@@ -22,6 +22,12 @@
         calibration_frames: 30 # Detections of every reference tag to collect (median is used)
         calibration_timeout: 15.0 # Seconds before an attempt is abandoned
         max_reprojection_error_px: 2.0 # Reject calibrations with a larger RMS reprojection error
+        # Play-area frame published as map -> table after a successful calibration.
+        # Origin = top-right corner of the play area, x towards the left, y towards the bottom.
+        # x_table = table_width - x_map, y_table = table_height - y_map
+        table_frame: table
+        table_width: 3.0 # Size of the play area along the map x axis [m]
+        table_height: 2.0 # Size of the play area along the map y axis [m]
         # Reference tags: centres in the map frame [m]. Origin = table corner, x along the 3 m side,
         # y along the 2 m side. Same order in the three lists.
         reference_tag_ids: [20, 21, 22, 23]

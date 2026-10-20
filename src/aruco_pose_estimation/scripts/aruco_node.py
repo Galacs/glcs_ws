@@ -32,6 +32,13 @@ Camera calibration:
     A calibration runs at startup (calibrate_on_start) and every time ~/calibrate
     is called. A failed calibration never overwrites the last good one.
 
+    Once calibrated, the node also publishes `map_frame -> table_frame` on /tf. The table
+    frame has its origin at the top-right corner of the play area (as seen in the usual
+    camera view), x pointing left and y pointing down, z up (same as map). It is the map
+    frame rotated by 180 deg about z and shifted by (table_width, table_height), i.e.
+    x_table = table_width - x_map, y_table = table_height - y_map. Goals sent to Nav2
+    with header.frame_id = table_frame are converted to the map frame through TF.
+
 Parameters:
     marker_size - size of the markers in meters (default .065)
     aruco_dictionary_id - dictionary that was used to generate markers (default DICT_5X5_250)
@@ -50,6 +57,9 @@ Parameters:
     max_reprojection_error_px - reject a calibration with a larger RMS error (default 2.0)
     reference_tag_ids / reference_tag_x / reference_tag_y - tag ids and centre positions
         in the map frame [m]
+    table_frame - name of the play-area frame published as a child of map_frame (default "table")
+    table_width - play area size along the map x axis [m] (default 3.0)
+    table_height - play area size along the map y axis [m] (default 2.0)
 
 Author: Simone Giampà
 Version: 2024-01-29
@@ -333,6 +343,9 @@ class ArucoNode(rclpy.node.Node):
                        self.map_frame, *T_map_link[:3, 3], roll, pitch, yaw, rms_px))
         if req.finish(True, message):
             self.get_logger().info("Calibration succeeded: " + message)
+            self.get_logger().info(
+                "Publishing {} -> {} (origin at top-right of the play area, x left, y down)".format(
+                    self.map_frame, self.table_frame))
 
     def publish_tf(self):
         with self._pose_lock:
@@ -351,7 +364,22 @@ class ArucoNode(rclpy.node.Node):
         msg.transform.rotation.y = float(qy)
         msg.transform.rotation.z = float(qz)
         msg.transform.rotation.w = float(qw)
-        self.tf_broadcaster.sendTransform(msg)
+
+        # map -> table: fixed 180 deg rotation about z, origin at (width, height) in map.
+        # Only published once the calibration has succeeded.
+        table = TransformStamped()
+        table.header.stamp = msg.header.stamp
+        table.header.frame_id = self.map_frame
+        table.child_frame_id = self.table_frame
+        table.transform.translation.x = self.table_width
+        table.transform.translation.y = self.table_height
+        table.transform.translation.z = 0.0
+        table.transform.rotation.x = 0.0
+        table.transform.rotation.y = 0.0
+        table.transform.rotation.z = 1.0  # sin(pi/2)
+        table.transform.rotation.w = 0.0  # cos(pi/2)
+
+        self.tf_broadcaster.sendTransform([msg, table])
 
     def _publish_boxes(self, markers):
         """
@@ -669,6 +697,22 @@ class ArucoNode(rclpy.node.Node):
                 description="y of the reference tag centres in the map frame [m] (same order as ids)."))
 
         self.declare_parameter(
+            name="table_frame", value="table",
+            descriptor=ParameterDescriptor(
+                type=ParameterType.PARAMETER_STRING,
+                description="Play-area frame (origin top-right, x left, y down), child of map_frame."))
+        self.declare_parameter(
+            name="table_width", value=3.0,
+            descriptor=ParameterDescriptor(
+                type=ParameterType.PARAMETER_DOUBLE,
+                description="Play area size along the map x axis [m]."))
+        self.declare_parameter(
+            name="table_height", value=2.0,
+            descriptor=ParameterDescriptor(
+                type=ParameterType.PARAMETER_DOUBLE,
+                description="Play area size along the map y axis [m]."))
+
+        self.declare_parameter(
             name="boxes_topic", value="/aruco/boxes",
             descriptor=ParameterDescriptor(
                 type=ParameterType.PARAMETER_STRING,
@@ -751,6 +795,10 @@ class ArucoNode(rclpy.node.Node):
         self.calibration_frames = int(self.get_parameter("calibration_frames").value)
         self.calibration_timeout = float(self.get_parameter("calibration_timeout").value)
         self.max_reprojection_error_px = float(self.get_parameter("max_reprojection_error_px").value)
+
+        self.table_frame = self.get_parameter("table_frame").value
+        self.table_width = float(self.get_parameter("table_width").value)
+        self.table_height = float(self.get_parameter("table_height").value)
 
         self.boxes_topic = self.get_parameter("boxes_topic").value
         self.box_ids = {int(i) for i in self.get_parameter("box_marker_ids").value}
