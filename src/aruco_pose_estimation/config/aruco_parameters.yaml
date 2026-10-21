@@ -40,3 +40,14 @@
         box_tag_to_center: 0.055 # Tag plane -> box centre, along the tag normal [m]
         box_center_height: 0.055 # Height of the box centre above the table when lying down [m]
         box_tag_long_axis: x # In-plane tag axis (x or y) parallel to the long side of the box
+
+        # Robot: pose of the robot tag converted to a robot pose in map_frame, published on /pose.
+        # The tag offset and height come from the fixed TF robot_base_frame -> robot_tag_frame (URDF).
+        robot_tag_id: 1 # Id of the tag stuck on the robot
+        robot_tag_frame: aruco_link # URDF frame of the robot tag (origin at the tag centre)
+        robot_base_frame: base_link # Frame whose pose is published on /pose
+        robot_ground_frame: "" # Frame on the table plane (e.g. base_footprint) used for the tag height; "" = robot_base_frame is on the table plane
+        robot_tag_yaw_offset: 3.14159265 # Rotation [rad] of aruco_link about z relative to the detector tag frame (x right, y up in the tag image); 0 if same convention
+        robot_pose_xy_variance: 0.01 # x/y variance written in the /pose covariance [m^2]
+        robot_pose_yaw_variance: 0.05 # yaw variance written in the /pose covariance [rad^2]
+        set_ekf_pose_on_first: false # Also publish the first robot pose on /set_pose to reset the EKF state

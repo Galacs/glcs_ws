@@ -39,6 +39,15 @@ Camera calibration:
     x_table = table_width - x_map, y_table = table_height - y_map. Goals sent to Nav2
     with header.frame_id = table_frame are converted to the map frame through TF.
 
+Robot pose:
+    The robot tag (robot_tag_id) is turned into a robot pose in the map frame and published
+    on /pose (PoseWithCovarianceStamped, frame_id = map_frame) for the EKF. Only the *direction*
+    from the camera to the tag centre is used (its estimated distance is the weakest part of the
+    PnP pose). That ray is intersected with the plane at the height of the tag link above the
+    table, and the fixed transform robot_base_frame -> robot_tag_frame (read from TF, i.e. from
+    the URDF) is then removed to get the robot_base_frame position and yaw. Nothing is published
+    until the camera calibration has succeeded and that transform is available.
+
 Parameters:
     marker_size - size of the markers in meters (default .065)
     aruco_dictionary_id - dictionary that was used to generate markers (default DICT_5X5_250)
@@ -60,6 +69,17 @@ Parameters:
     table_frame - name of the play-area frame published as a child of map_frame (default "table")
     table_width - play area size along the map x axis [m] (default 3.0)
     table_height - play area size along the map y axis [m] (default 2.0)
+    robot_tag_id - id of the tag on the robot (default 1)
+    robot_tag_frame - URDF frame of that tag, origin at the tag centre (default "aruco_link")
+    robot_base_frame - frame whose pose is published on /pose (default "base_link")
+    robot_ground_frame - frame lying on the table plane, used to get the tag height; "" means
+        robot_base_frame is assumed to lie on the table plane (default "")
+    robot_tag_yaw_offset - rotation [rad] of robot_tag_frame about its z axis relative to the
+        detector's tag frame (x right, y up in the tag image, z out of the tag); 0 if the URDF
+        frame follows the same convention (default 0.0)
+    robot_pose_xy_variance / robot_pose_yaw_variance - covariance written on /pose
+    set_ekf_pose_on_first - also publish the first robot pose on /set_pose to reset the EKF
+        state to it (default False)
 
 Author: Simone Giampà
 Version: 2024-01-29
@@ -175,6 +195,7 @@ class ArucoNode(rclpy.node.Node):
         # Set up publishers
         self.poses_pub = self.create_publisher(PoseArray, self.markers_visualization_topic, 10)
         self.pose_pub = self.create_publisher(PoseWithCovarianceStamped, '/pose', 10)
+        self.set_pose_pub = self.create_publisher(PoseWithCovarianceStamped, '/set_pose', 10)
         self.markers_pub = self.create_publisher(ArucoMarkers, self.detected_markers_topic, 10)
         self.image_pub = self.create_publisher(Image, self.output_image_topic, 10)
         self.boxes_pub = self.create_publisher(PoseArray, self.boxes_topic, 10)
@@ -204,6 +225,8 @@ class ArucoNode(rclpy.node.Node):
         self._T_map_link = None
         self._T_map_optical = None
         self.calibrated = False
+        self._robot_tag_tf = None      # cached (R_base_link, t_base_link, link_height)
+        self._ekf_pose_set = False
 
         # TF: the listener is used to read the fixed camera_link -> optical frame
         # transform from the URDF, the broadcaster to publish map -> camera_link
@@ -414,6 +437,107 @@ class ArucoNode(rclpy.node.Node):
             boxes.poses.append(box)
         self.boxes_pub.publish(boxes)
 
+    def _robot_tag_transform(self):
+        """
+        Fixed pose of the robot tag link, read once from TF (robot_state_publisher):
+        returns (R_base_link, t_base_link, link_height) where the first two are the pose of
+        robot_tag_frame in robot_base_frame and link_height is the height of the tag link
+        origin above the table. Returns None (with a throttled warning) until available.
+        """
+        if self._robot_tag_tf is not None:
+            return self._robot_tag_tf
+        ground = self.robot_ground_frame or self.robot_base_frame
+        try:
+            tf = self.tf_buffer.lookup_transform(self.robot_base_frame, self.robot_tag_frame,
+                                                 rclpy.time.Time())
+            t, q = tf.transform.translation, tf.transform.rotation
+            T_base_link = transform_to_matrix([t.x, t.y, t.z], [q.x, q.y, q.z, q.w])
+            if ground == self.robot_base_frame:
+                height = float(T_base_link[2, 3])
+            else:
+                tf_g = self.tf_buffer.lookup_transform(ground, self.robot_tag_frame,
+                                                       rclpy.time.Time())
+                height = float(tf_g.transform.translation.z)
+        except Exception as e:  # tf2 raises several exception types
+            self.get_logger().warning(
+                "robot pose: cannot look up {} -> {} (ground frame {}): {}".format(
+                    self.robot_base_frame, self.robot_tag_frame, ground, e),
+                throttle_duration_sec=5.0)
+            return None
+
+        self._robot_tag_tf = (T_base_link[:3, :3].copy(), T_base_link[:3, 3].copy(), height)
+        self.get_logger().info(
+            "Robot tag: {} in {} at xyz = [{:.4f}, {:.4f}, {:.4f}] m; height above {} = {:.4f} m".format(
+                self.robot_tag_frame, self.robot_base_frame, *T_base_link[:3, 3], ground, height))
+        return self._robot_tag_tf
+
+    def _publish_robot_pose(self, markers):
+        """
+        Publish the pose (x, y, yaw) of robot_base_frame in the map frame on /pose.
+
+        Only the direction camera -> tag is used; it is intersected with the horizontal plane at
+        the height of the tag link, which gives the tag position in the map. The robot yaw comes
+        from the tag orientation, and the fixed robot_base_frame -> robot_tag_frame transform
+        (from the URDF) is removed to get the base position.
+        """
+        if self.robot_tag_id not in markers.marker_ids:
+            return
+        with self._pose_lock:
+            T = self._T_map_optical
+        if T is None:
+            return
+        robot_tf = self._robot_tag_transform()
+        if robot_tf is None:
+            return
+        R_base_link, t_base_link, height = robot_tf
+
+        idx = list(markers.marker_ids).index(self.robot_tag_id)
+        p, q = markers.poses[idx].position, markers.poses[idx].orientation
+        p_cam = np.array([p.x, p.y, p.z], dtype=np.float64)
+        norm = np.linalg.norm(p_cam)
+        if not np.isfinite(norm) or norm < 1e-6:
+            return
+
+        R_map_optical = T[:3, :3]
+        cam = T[:3, 3]
+        ray = R_map_optical @ (p_cam / norm)
+        if ray[2] > -1e-3:
+            self.get_logger().warning("robot tag ignored: ray does not reach the table",
+                                      throttle_duration_sec=5.0)
+            return
+        tag = cam + ray * ((height - cam[2]) / ray[2])
+
+        c, s = math.cos(self.robot_tag_yaw_offset), math.sin(self.robot_tag_yaw_offset)
+        R_tag_link = np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
+        R_map_link = R_map_optical @ quat_to_matrix([q.x, q.y, q.z, q.w]) @ R_tag_link
+        R_map_base = R_map_link @ R_base_link.T
+        yaw = matrix_to_rpy(R_map_base)[2]
+
+        # the robot is planar: remove the tag offset with the yaw rotation only
+        cy, sy = math.cos(yaw), math.sin(yaw)
+        x = tag[0] - (cy * t_base_link[0] - sy * t_base_link[1])
+        y = tag[1] - (sy * t_base_link[0] + cy * t_base_link[1])
+
+        msg = PoseWithCovarianceStamped()
+        msg.header.frame_id = self.map_frame
+        msg.header.stamp = markers.header.stamp
+        msg.pose.pose.position.x = float(x)
+        msg.pose.pose.position.y = float(y)
+        msg.pose.pose.orientation.z = math.sin(yaw / 2.0)
+        msg.pose.pose.orientation.w = math.cos(yaw / 2.0)
+        cov = [0.0] * 36
+        cov[0] = cov[7] = self.robot_xy_var
+        cov[14] = cov[21] = cov[28] = 999.0
+        cov[35] = self.robot_yaw_var
+        msg.pose.covariance = cov
+        self.pose_pub.publish(msg)
+
+        if self.set_ekf_pose_on_first and not self._ekf_pose_set:
+            self.set_pose_pub.publish(msg)
+            self._ekf_pose_set = True
+            self.get_logger().info(
+                "EKF pose reset on /set_pose: x={:.3f} y={:.3f} yaw={:.3f}".format(x, y, yaw))
+
     def info_callback(self, info_msg):
         self.info_msg = info_msg
         # get the intrinsic matrix and distortion coefficients from the camera info
@@ -469,21 +593,7 @@ class ArucoNode(rclpy.node.Node):
                                                      distortion_coefficients=self.distortion, pose_array=pose_array, markers=markers)
         self._publish_boxes(markers)
         if len(markers.marker_ids) > 0:
-            if 1 in markers.marker_ids:
-                idx = markers.marker_ids.index(1)
-
-                pose_msg = PoseWithCovarianceStamped()
-                pose_msg.header = pose_array.header
-                pose_msg.pose.pose = pose_array.poses[idx]
-                pose_msg.pose.covariance = [
-                    0.25, 0, 0, 0, 0, 0,
-                    0, 0.25, 0, 0, 0, 0,
-                    0, 0, 999.0, 0, 0, 0,
-                    0, 0, 0, 999.0, 0, 0,
-                    0, 0, 0, 0, 999.0, 0,
-                    0, 0, 0, 0, 0, 0.1,
-                ]
-                self.pose_pub.publish(pose_msg)
+            self._publish_robot_pose(markers)
 
             # Publish the results with the poses and markers positions
             self.poses_pub.publish(pose_array)
@@ -530,21 +640,7 @@ class ArucoNode(rclpy.node.Node):
 
         # if some markers are detected
         if len(markers.marker_ids) > 0:
-            if 1 in markers.marker_ids:
-                idx = markers.marker_ids.index(1)
-
-                pose_msg = PoseWithCovarianceStamped()
-                pose_msg.header = pose_array.header
-                pose_msg.pose.pose = pose_array.poses[idx]
-                pose_msg.pose.covariance = [
-                    0.25, 0, 0, 0, 0, 0,
-                    0, 0.25, 0, 0, 0, 0,
-                    0, 0, 999.0, 0, 0, 0,
-                    0, 0, 0, 999.0, 0, 0,
-                    0, 0, 0, 0, 999.0, 0,
-                    0, 0, 0, 0, 0, 0.1,
-                ]
-                self.pose_pub.publish(pose_msg)
+            self._publish_robot_pose(markers)
 
             # Publish the results with the poses and markers positions
             self.poses_pub.publish(pose_array)
@@ -738,6 +834,49 @@ class ArucoNode(rclpy.node.Node):
                 type=ParameterType.PARAMETER_STRING,
                 description="In-plane tag axis (x or y) parallel to the long side of the box."))
 
+        self.declare_parameter(
+            name="robot_tag_id", value=1,
+            descriptor=ParameterDescriptor(
+                type=ParameterType.PARAMETER_INTEGER,
+                description="Id of the tag stuck on the robot."))
+        self.declare_parameter(
+            name="robot_tag_frame", value="aruco_link",
+            descriptor=ParameterDescriptor(
+                type=ParameterType.PARAMETER_STRING,
+                description="URDF frame of the robot tag (origin at the tag centre)."))
+        self.declare_parameter(
+            name="robot_base_frame", value="base_link",
+            descriptor=ParameterDescriptor(
+                type=ParameterType.PARAMETER_STRING,
+                description="Frame whose pose is published on /pose."))
+        self.declare_parameter(
+            name="robot_ground_frame", value="",
+            descriptor=ParameterDescriptor(
+                type=ParameterType.PARAMETER_STRING,
+                description="Frame lying on the table plane (e.g. base_footprint). Empty: "
+                            "robot_base_frame is assumed to lie on the table plane."))
+        self.declare_parameter(
+            name="robot_tag_yaw_offset", value=0.0,
+            descriptor=ParameterDescriptor(
+                type=ParameterType.PARAMETER_DOUBLE,
+                description="Rotation [rad] of the URDF tag frame about its z axis relative to "
+                            "the detector tag frame (x right, y up in the tag image)."))
+        self.declare_parameter(
+            name="robot_pose_xy_variance", value=0.01,
+            descriptor=ParameterDescriptor(
+                type=ParameterType.PARAMETER_DOUBLE,
+                description="x/y variance [m^2] written in the /pose covariance."))
+        self.declare_parameter(
+            name="robot_pose_yaw_variance", value=0.05,
+            descriptor=ParameterDescriptor(
+                type=ParameterType.PARAMETER_DOUBLE,
+                description="Yaw variance [rad^2] written in the /pose covariance."))
+        self.declare_parameter(
+            name="set_ekf_pose_on_first", value=False,
+            descriptor=ParameterDescriptor(
+                type=ParameterType.PARAMETER_BOOL,
+                description="Also publish the first robot pose on /set_pose to reset the EKF."))
+
         # read parameters from aruco_params.yaml and store them
         self.marker_size = (
             self.get_parameter("marker_size").get_parameter_value().double_value
@@ -805,6 +944,15 @@ class ArucoNode(rclpy.node.Node):
         self.box_tag_to_center = float(self.get_parameter("box_tag_to_center").value)
         self.box_center_height = float(self.get_parameter("box_center_height").value)
         self.box_long_axis = {"x": 0, "y": 1}[self.get_parameter("box_tag_long_axis").value]
+
+        self.robot_tag_id = int(self.get_parameter("robot_tag_id").value)
+        self.robot_tag_frame = self.get_parameter("robot_tag_frame").value
+        self.robot_base_frame = self.get_parameter("robot_base_frame").value
+        self.robot_ground_frame = self.get_parameter("robot_ground_frame").value
+        self.robot_tag_yaw_offset = float(self.get_parameter("robot_tag_yaw_offset").value)
+        self.robot_xy_var = float(self.get_parameter("robot_pose_xy_variance").value)
+        self.robot_yaw_var = float(self.get_parameter("robot_pose_yaw_variance").value)
+        self.set_ekf_pose_on_first = bool(self.get_parameter("set_ekf_pose_on_first").value)
 
         self.ref_ids = [int(i) for i in self.get_parameter("reference_tag_ids").value]
         ref_x = list(self.get_parameter("reference_tag_x").value)
